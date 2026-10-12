@@ -1,12 +1,9 @@
 {
     "mcpServers": {
+
       "aegis_local_frontend": {
-        "transport": "mcp",
-        "url": "https://mcp.runaegis.co/mcp",
-        "headers": {
-       
-          "X-Agent-Key": "2ufXR6yv086CtPKhfoZoT-4eOebp-9yXDjEvEyAwrUi2cJetMAxk6sagDP26lqw9"
-        }
-      }
+        "transport": "http",
+          "url": "https://mcp.runaegis.co/mcp?api_key=yoBFMElHxRegvzaDVzQso2RXO7WOwA2zGAXdJD2G_stJou2Yel4iZV5iGSGSyPot"
+        },
     }
 }

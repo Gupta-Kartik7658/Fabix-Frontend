@@ -12,7 +12,8 @@ export function isSafePostAuthPath(path: string): boolean {
   }
   return (
     /^\/memory\/share\/[A-Za-z0-9_-]+\/?$/.test(clean) ||
-    /^\/workspaces\/join\/[A-Za-z0-9_-]+\/?$/.test(clean)
+    /^\/workspaces\/join\/[A-Za-z0-9_-]+\/?$/.test(clean) ||
+    /^\/secrets\/entry\/[A-Za-z0-9_-]+\/?$/.test(clean)
   );
 }
 
@@ -67,4 +68,14 @@ export function buildWorkspaceJoinUrl(inviteCode: string, origin?: string): stri
   const base =
     origin ?? (typeof window !== "undefined" ? window.location.origin : "");
   return `${base}${buildWorkspaceJoinPath(inviteCode)}`;
+}
+
+export function buildSecretEntryPath(token: string): string {
+  return `/secrets/entry/${encodeURIComponent(token)}`;
+}
+
+export function buildSecretEntryUrl(token: string, origin?: string): string {
+  const base =
+    origin ?? (typeof window !== "undefined" ? window.location.origin : "");
+  return `${base}${buildSecretEntryPath(token)}`;
 }
