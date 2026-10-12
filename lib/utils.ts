@@ -75,8 +75,13 @@ export function formatRelativeTime(timestamp: string): string {
   return parsed.toLocaleDateString();
 }
 
-export function formatFullTimestamp(timestamp: string): string {
-  return parseApiUtcTimestamp(timestamp).toLocaleString('en-US', {
+export function formatFullTimestamp(timestamp?: string | null): string {
+  if (!timestamp || !timestamp.trim()) return '—';
+
+  const parsed = parseApiUtcTimestamp(timestamp);
+  if (Number.isNaN(parsed.getTime())) return '—';
+
+  return parsed.toLocaleString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -144,6 +149,20 @@ export function formatExecutionTimeMs(
 
 export function cn(...classes: (string | false | null | undefined)[]): string {
   return classes.filter(Boolean).join(' ');
+}
+
+/** Compact integer for stat cards: 482110 → "482k", 91 → "91". */
+export function formatCompactNumber(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return '0';
+  const abs = Math.abs(value);
+  const sign = value < 0 ? '-' : '';
+  const trim = (n: number) => {
+    const rounded = n >= 10 ? n.toFixed(0) : n.toFixed(1);
+    return rounded.replace(/\.0$/, '');
+  };
+  if (abs >= 1_000_000) return `${sign}${trim(abs / 1_000_000)}M`;
+  if (abs >= 1_000) return `${sign}${trim(abs / 1_000)}k`;
+  return `${sign}${Math.round(abs)}`;
 }
 
 const MCP_AEGIS_TOOL_PREFIX = 'mcp_aegis_';

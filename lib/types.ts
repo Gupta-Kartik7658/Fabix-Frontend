@@ -63,13 +63,14 @@ export interface UserPromptListResponse {
   prompts: UserPrompt[];
 }
 
-export type NotificationType = "ALLOW" | "DENY" | "APPROVAL" | "REWRITE";
+export type NotificationType = "ALLOW" | "DENY" | "APPROVAL" | "REWRITE" | "PING";
 
 export interface NotificationPreferences {
   notify_allow: boolean;
   notify_deny: boolean;
   notify_approval: boolean;
   notify_rewrite: boolean;
+  notify_ping: boolean;
   created_at?: string | null;
   updated_at?: string | null;
 }
@@ -82,6 +83,8 @@ export interface UserNotification {
   target_descriptor?: string | null;
   room_id?: string | null;
   room_name?: string | null;
+  workspace_id?: string | null;
+  workspace_message_id?: string | null;
   is_read: boolean;
   read_at?: string | null;
   created_at: string;
@@ -243,6 +246,8 @@ export interface PrivateConnectorCredentialStatus {
   created_at?: string | null;
   updated_at?: string | null;
   revoked_at?: string | null;
+  last_tested_at?: string | null;
+  last_error?: string | null;
 }
 
 export interface SlackIntegrationStatus {

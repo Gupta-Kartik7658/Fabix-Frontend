@@ -146,8 +146,25 @@ export type WorkspaceMessage = {
   sender_member_id: string;
   message_text: string | null;
   mentioned_member_ids: string[];
+  mentioned_user_ids?: string[];
+  pinged_you?: boolean;
   file_refs: WorkspaceFileRef[];
   created_at: string;
+};
+
+export type WorkspacePerson = {
+  user_id: string;
+  name: string;
+  email?: string | null;
+  is_owner: boolean;
+  ping_handle: string;
+};
+
+export type WorkspaceMentionResolve = {
+  mentions: Array<{ handle?: string; member_id?: string }>;
+  unknown_handles: string[];
+  pinged_users: Array<{ user_id: string; name?: string; ping_handle?: string }>;
+  unknown_pings: string[];
 };
 
 export type WorkspacePointerStatus = "pending" | "review" | "done";
@@ -163,6 +180,11 @@ export type WorkspaceTaskPointer = {
   created_by_user_id: string;
   created_at: string;
   updated_at: string;
+  /** Assignee member. Null when unassigned. */
+  assignee_member_id?: string | null;
+  assignee_handle?: string | null;
+  /** True when the assignee is one of the current user's active agents. */
+  pointed_at_you?: boolean;
 };
 
 export type WorkspaceRecord = {
@@ -177,6 +199,78 @@ export type WorkspaceSummary = WorkspaceRecord & {
   agent_count: number;
   message_count: number;
   pointer_count?: number;
+  unread_mention_count?: number;
+  last_activity_at?: string | null;
+  run_count?: number;
+  total_tokens?: number;
+  /** Present only if the API ships it. Do not invent; no failed-run chip. */
+  failed_run_count?: number;
+  /** Active agent handles when the list payload includes them. */
+  agent_handles?: string[];
+};
+
+export type WorkspaceRunStatus = "success" | "failed" | "running" | "pending" | string;
+
+export type RunRecord = {
+  id: string;
+  workspace_id: string;
+  workspace_name: string;
+  workspace_title?: string | null;
+
+  user_id: string | null;
+
+  agent_id: string | null;
+  agent_name: string;
+  agent_handle?: string | null;
+
+  connector_key: string | null;
+  tool_name: string;
+
+  arguments: Record<string, unknown>;
+
+  status: string;
+
+  result_summary: string | null;
+  result_payload: Record<string, unknown>;
+  error_message: string | null;
+
+  started_at: string | null;
+  completed_at: string | null;
+  execution_time_ms: number;
+
+  input_token: number;
+  output_token: number;
+
+  created_at: string;
+  updated_at: string | null;
+};
+
+export type RunListResponse = {
+  items: RunRecord[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type WorkspaceRun = {
+  id: string;
+  workspace_id?: string;
+  tool_name: string;
+  status: WorkspaceRunStatus;
+  execution_time_ms?: number | null;
+  agent_handle?: string | null;
+  arguments?: unknown;
+  result_payload?: unknown;
+  timestamp?: string | null;
+  /** Present only if the list/detail payload includes it. Do not invent. */
+  token_count?: number | null;
+};
+
+export type WorkspaceRunList = {
+  items: WorkspaceRun[];
+  total: number;
+  limit: number;
+  offset: number;
 };
 
 export type WorkspaceDetail = {
@@ -260,6 +354,92 @@ export type WorkspaceJoinResponse = {
   agent_key: string | null;
   mcp_config_snippet: WorkspaceAgentKeyResponse["mcp_config_snippet"] | null;
 };
+
+function normalizeRunRecord(row: unknown): RunRecord {
+  const parsed = parseRow(row) as Record<string, unknown>;
+
+  return {
+    id: String(parsed.id ?? ""),
+    workspace_id: String(parsed.workspace_id ?? ""),
+    workspace_name: String(parsed.workspace_name ?? ""),
+    workspace_title:
+      typeof parsed.workspace_title === "string"
+        ? parsed.workspace_title
+        : null,
+    user_id:
+      typeof parsed.user_id === "string"
+        ? parsed.user_id
+        : null,
+    agent_id:
+      typeof parsed.agent_id === "string"
+        ? parsed.agent_id
+        : null,
+    agent_name:
+      typeof parsed.agent_name === "string"
+        ? parsed.agent_name
+        : "Unknown",
+    agent_handle:
+      typeof parsed.agent_handle === "string"
+        ? parsed.agent_handle
+        : null,
+    connector_key:
+      typeof parsed.connector_key === "string"
+        ? parsed.connector_key
+        : null,
+    tool_name:
+      typeof parsed.tool_name === "string"
+        ? parsed.tool_name
+        : "unknown",
+    arguments:
+      parsed.arguments &&
+      typeof parsed.arguments === "object"
+        ? (parsed.arguments as Record<string, unknown>)
+        : {},
+    status:
+      typeof parsed.status === "string"
+        ? parsed.status
+        : "unknown",
+    result_summary:
+      typeof parsed.result_summary === "string"
+        ? parsed.result_summary
+        : null,
+    result_payload:
+      parsed.result_payload &&
+      typeof parsed.result_payload === "object"
+        ? (parsed.result_payload as Record<string, unknown>)
+        : {},
+    error_message:
+      typeof parsed.error_message === "string"
+        ? parsed.error_message
+        : null,
+    started_at:
+      typeof parsed.started_at === "string"
+        ? parsed.started_at
+        : null,
+    completed_at:
+      typeof parsed.completed_at === "string"
+        ? parsed.completed_at
+        : null,
+    execution_time_ms:
+      asFiniteNumber(parsed.execution_time_ms) ?? 0,
+    created_at:
+      typeof parsed.created_at === "string"
+        ? parsed.created_at
+        : new Date().toISOString(),
+    updated_at:
+      typeof parsed.updated_at === "string"
+        ? parsed.updated_at
+        : null,
+    input_token:
+      asFiniteNumber(parsed.input_token) ??
+      0,
+
+    output_token:
+      asFiniteNumber(parsed.output_token) ??
+      0,
+  };
+}
+
 
 function getAPIBase(): string {
   let url = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -414,6 +594,7 @@ function parseRow(row: unknown, columns?: string[]): unknown {
     "first_seen_at",
     "last_seen_at",
     "last_used_at",
+    "last_activity_at",
   ];
   for (const field of datetimeFields) {
     if (obj[field]) obj[field] = parseDatetime(String(obj[field]));
@@ -422,6 +603,192 @@ function parseRow(row: unknown, columns?: string[]): unknown {
     obj.decision = normalizeDecision(obj.decision);
   }
   return obj;
+}
+
+function asFiniteNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+  return undefined;
+}
+
+function asIdList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (item): item is string => typeof item === "string" && item.trim().length > 0,
+  );
+}
+
+export function normalizeWorkspaceMessage(row: unknown): WorkspaceMessage | null {
+  if (!row || typeof row !== "object") return null;
+  const raw = parseRow(row) as Record<string, unknown>;
+  const id = typeof raw.id === "string" ? raw.id : "";
+  if (!id) return null;
+
+  return {
+    id,
+    workspace_id: typeof raw.workspace_id === "string" ? raw.workspace_id : "",
+    sender_member_id:
+      typeof raw.sender_member_id === "string" ? raw.sender_member_id : "",
+    message_text:
+      typeof raw.message_text === "string"
+        ? raw.message_text
+        : raw.message_text == null
+          ? null
+          : String(raw.message_text),
+    mentioned_member_ids: asIdList(raw.mentioned_member_ids),
+    mentioned_user_ids: asIdList(raw.mentioned_user_ids),
+    pinged_you: raw.pinged_you === true,
+    file_refs: Array.isArray(raw.file_refs)
+      ? (raw.file_refs as WorkspaceFileRef[])
+      : [],
+    created_at:
+      typeof raw.created_at === "string"
+        ? raw.created_at
+        : new Date().toISOString(),
+  };
+}
+
+function normalizeWorkspacePerson(row: unknown): WorkspacePerson | null {
+  if (!row || typeof row !== "object") return null;
+  const raw = parseRow(row) as Record<string, unknown>;
+  const userId = typeof raw.user_id === "string" ? raw.user_id : "";
+  if (!userId) return null;
+  return {
+    user_id: userId,
+    name: typeof raw.name === "string" && raw.name.trim() ? raw.name : "Member",
+    email: typeof raw.email === "string" ? raw.email : null,
+    is_owner: raw.is_owner === true,
+    ping_handle: typeof raw.ping_handle === "string" ? raw.ping_handle : "",
+  };
+}
+
+function normalizeMentionResolve(payload: unknown): WorkspaceMentionResolve {
+  const raw =
+    payload && typeof payload === "object"
+      ? (payload as Record<string, unknown>)
+      : {};
+  const pingedUsers = Array.isArray(raw.pinged_users)
+    ? raw.pinged_users.flatMap((row) => {
+        if (!row || typeof row !== "object") return [];
+        const item = row as Record<string, unknown>;
+        const userId = typeof item.user_id === "string" ? item.user_id : "";
+        if (!userId) return [];
+        return [
+          {
+            user_id: userId,
+            name: typeof item.name === "string" ? item.name : undefined,
+            ping_handle:
+              typeof item.ping_handle === "string" ? item.ping_handle : undefined,
+          },
+        ];
+      })
+    : [];
+  const mentions = Array.isArray(raw.mentions)
+    ? raw.mentions.flatMap((row) => {
+        if (!row || typeof row !== "object") return [];
+        const item = row as Record<string, unknown>;
+        return [
+          {
+            handle: typeof item.handle === "string" ? item.handle : undefined,
+            member_id:
+              typeof item.member_id === "string" ? item.member_id : undefined,
+          },
+        ];
+      })
+    : [];
+
+  return {
+    mentions,
+    unknown_handles: asIdList(raw.unknown_handles),
+    pinged_users: pingedUsers,
+    unknown_pings: asIdList(raw.unknown_pings),
+  };
+}
+
+function extractAgentHandles(parsed: Record<string, unknown>): string[] | undefined {
+  if (Array.isArray(parsed.agent_handles)) {
+    const handles = parsed.agent_handles.filter(
+      (handle): handle is string => typeof handle === "string" && handle.trim().length > 0,
+    );
+    return handles.map((handle) => handle.replace(/^@/, ""));
+  }
+  if (Array.isArray(parsed.agents)) {
+    const handles: string[] = [];
+    for (const row of parsed.agents) {
+      if (typeof row === "string" && row.trim()) {
+        handles.push(row.replace(/^@/, ""));
+        continue;
+      }
+      if (!row || typeof row !== "object") continue;
+      const agent = row as { handle?: unknown; status?: unknown };
+      if (typeof agent.status === "string" && agent.status !== "active") continue;
+      if (typeof agent.handle === "string" && agent.handle.trim()) {
+        handles.push(agent.handle.replace(/^@/, ""));
+      }
+    }
+    return handles;
+  }
+  return undefined;
+}
+
+function normalizeWorkspaceSummary(row: unknown): WorkspaceSummary {
+  const parsed = parseRow(row) as WorkspaceSummary & Record<string, unknown>;
+  const agent_handles = extractAgentHandles(parsed);
+  return {
+    ...parsed,
+    agent_count: asFiniteNumber(parsed.agent_count) ?? agent_handles?.length ?? 0,
+    message_count: asFiniteNumber(parsed.message_count) ?? 0,
+    pointer_count: asFiniteNumber(parsed.pointer_count),
+    unread_mention_count: asFiniteNumber(parsed.unread_mention_count),
+    run_count: asFiniteNumber(parsed.run_count),
+    total_tokens: asFiniteNumber(parsed.total_tokens),
+    failed_run_count: asFiniteNumber(parsed.failed_run_count),
+    agent_handles,
+  };
+}
+
+function normalizeWorkspaceRun(row: unknown): WorkspaceRun {
+  const parsed = parseRow(row) as Record<string, unknown>;
+  const tool =
+    pickString(parsed.tool_name) ??
+    pickString(parsed.tool) ??
+    "unknown";
+  const handle =
+    pickString(parsed.agent_handle) ??
+    pickString(parsed.agent_name) ??
+    null;
+  const status =
+    pickString(parsed.status) ??
+    pickString(parsed.decision) ??
+    "unknown";
+  const duration =
+    asFiniteNumber(parsed.execution_time_ms) ??
+    asFiniteNumber(parsed.execution_time) ??
+    null;
+  const timestamp =
+    pickString(parsed.timestamp) ??
+    pickString(parsed.created_at) ??
+    pickString(parsed.started_at) ??
+    null;
+  return {
+    id: pickString(parsed.id) ?? pickString(parsed.run_id) ?? "",
+    workspace_id: pickString(parsed.workspace_id),
+    tool_name: tool,
+    status,
+    execution_time_ms: duration,
+    agent_handle: handle,
+    arguments: parsed.arguments ?? parsed.args ?? null,
+    result_payload: parsed.result_payload ?? parsed.result ?? null,
+    timestamp,
+    token_count:
+      asFiniteNumber(parsed.token_count) ??
+      asFiniteNumber(parsed.tokens) ??
+      asFiniteNumber(parsed.total_tokens) ??
+      null,
+  };
 }
 
 function getJsonHeaders(): HeadersInit {
@@ -1357,6 +1724,12 @@ function normalizePrivateCredentialStatus(
     created_at: typeof raw.created_at === "string" ? raw.created_at : null,
     updated_at: typeof raw.updated_at === "string" ? raw.updated_at : null,
     revoked_at: typeof raw.revoked_at === "string" ? raw.revoked_at : null,
+    last_tested_at:
+      typeof raw.last_tested_at === "string" ? raw.last_tested_at : null,
+    last_error:
+      typeof raw.last_error === "string" && raw.last_error.trim()
+        ? raw.last_error
+        : null,
   };
 }
 
@@ -1386,6 +1759,10 @@ function normalizeNotificationPreferences(
       typeof raw.notify_rewrite === "boolean"
         ? raw.notify_rewrite
         : defaults.notify_rewrite,
+    notify_ping:
+      typeof raw.notify_ping === "boolean"
+        ? raw.notify_ping
+        : defaults.notify_ping,
     created_at: typeof raw.created_at === "string" ? raw.created_at : null,
     updated_at: typeof raw.updated_at === "string" ? raw.updated_at : null,
   };
@@ -1430,6 +1807,12 @@ function normalizeUserNotification(
       typeof raw.target_descriptor === "string" ? raw.target_descriptor : null,
     room_id: typeof raw.room_id === "string" ? raw.room_id : null,
     room_name: typeof raw.room_name === "string" ? raw.room_name : null,
+    workspace_id:
+      typeof raw.workspace_id === "string" ? raw.workspace_id : null,
+    workspace_message_id:
+      typeof raw.workspace_message_id === "string"
+        ? raw.workspace_message_id
+        : null,
     is_read:
       typeof raw.is_read === "boolean"
         ? raw.is_read
@@ -1947,6 +2330,23 @@ export const api = {
     if (!res.ok) throw await readApiError(res);
   },
 
+  testPrivateConnectorCredentials: async (
+    connectorKey: string,
+  ): Promise<PrivateConnectorCredentialStatus> => {
+    const res = await apiFetch(
+      `${API_BASE}/api/v3/connectors/setup/${encodeURIComponent(connectorKey)}/test`,
+      { method: "POST" },
+    );
+    if (!res.ok) throw await readApiError(res);
+
+    const status = normalizePrivateCredentialStatus(await res.json());
+    if (!status) {
+      throw new Error("Server returned an invalid connector test payload.");
+    }
+
+    return status;
+  },
+
   logOut: async () => {
     try {
       await fetch(`${API_BASE}/auth/logout`, {
@@ -1958,6 +2358,38 @@ export const api = {
     } finally {
       clearStoredAuthState();
     }
+  },
+
+  logoutAllDevices: async () => {
+    try {
+      const res = await apiFetch(`${API_BASE}/auth/logout-all`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        throw await readApiError(res);
+      }
+    } catch {
+      // ignore logout-all network failures
+    } finally {
+      clearStoredAuthState();
+    }
+  },
+
+  deleteUser: async (payload: {
+    confirmation: string;
+    password?: string;
+  }): Promise<void> => {
+    const res = await apiFetch(`${API_BASE}/auth/user`, {
+      method: "DELETE",
+      headers: getJsonHeaders(),
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      throw await readApiError(res);
+    }
+
+    clearStoredAuthState();
   },
 
   getRuns: async (
@@ -1973,6 +2405,66 @@ export const api = {
       (a, b) =>
         new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
     );
+  },
+
+  getRunsPage: async (
+    opts: {
+      workspace_id?: string;
+      agent_id?: string;
+      status?: string;
+      connector_key?: string;
+      tool_name?: string;
+      page?: number;
+      page_size?: number;
+    } = {},
+  ): Promise<RunListResponse> => {
+    const page = opts.page ?? 1;
+    const page_size = opts.page_size ?? 20;
+    const offset = (page - 1) * page_size;
+
+    const url = new URL(`${API_BASE}/api/v3/runs`);
+
+    if (opts.workspace_id) {
+      url.searchParams.set("workspace_id", opts.workspace_id);
+    }
+
+    if (opts.agent_id) {
+      url.searchParams.set("agent_id", opts.agent_id);
+    }
+
+    if (opts.status) {
+      url.searchParams.set("status", opts.status);
+    }
+
+    if (opts.connector_key) {
+      url.searchParams.set("connector_key", opts.connector_key);
+    }
+
+    if (opts.tool_name) {
+      url.searchParams.set("tool_name", opts.tool_name);
+    }
+
+    url.searchParams.set("limit", String(page_size));
+    url.searchParams.set("offset", String(offset));
+
+    const res = await apiFetch(url.toString());
+
+    if (!res.ok) {
+      throw await readApiError(res);
+    }
+
+    const payload = await res.json();
+
+    const rawItems = Array.isArray(payload?.items)
+      ? payload.items
+      : [];
+
+    return {
+      items: rawItems.map(normalizeRunRecord),
+      total: asFiniteNumber(payload?.total) ?? rawItems.length,
+      limit: asFiniteNumber(payload?.limit) ?? page_size,
+      offset: asFiniteNumber(payload?.offset) ?? offset,
+    };
   },
 
   /** One page of session actions (runs). Default matches server pagination (20). */
@@ -2539,7 +3031,11 @@ export const api = {
     payload: Partial<
       Pick<
         NotificationPreferences,
-        "notify_allow" | "notify_deny" | "notify_approval" | "notify_rewrite"
+        | "notify_allow"
+        | "notify_deny"
+        | "notify_approval"
+        | "notify_rewrite"
+        | "notify_ping"
       >
     >,
   ): Promise<NotificationPreferences> => {
@@ -3269,6 +3765,20 @@ export const api = {
     return [];
   },
 
+  createMemory: async (
+    payload: Pick<Memory, "title" | "memory">,
+  ): Promise<Memory> => {
+    const res = await apiFetch(`${API_BASE}/api/v3/memory`, {
+      method: "POST",
+      headers: getJsonHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to create memory: ${await readErrorMessage(res)}`);
+    }
+    return res.json();
+  },
+
   updateMemory: async (
     memoryId: string,
     userId: string,
@@ -3411,6 +3921,16 @@ export const api = {
     return res.json();
   },
 
+  deleteUserPrompt: async (promptId: string): Promise<void> => {
+    const res = await apiFetch(
+      `${API_BASE}/user-prompts/${encodeURIComponent(promptId)}`,
+      { method: "DELETE" },
+    );
+    if (!res.ok) {
+      throw new Error(`Failed to delete prompt: ${await readErrorMessage(res)}`);
+    }
+  },
+
   getWorkspaces: async (): Promise<WorkspaceSummary[]> => {
     const res = await apiFetch(`${API_BASE}/api/workspaces`);
     if (!res.ok) {
@@ -3418,8 +3938,46 @@ export const api = {
     }
     const data = await res.json();
     return Array.isArray(data)
-      ? data.map((row: unknown) => parseRow(row) as WorkspaceSummary)
+      ? data.map((row: unknown) => normalizeWorkspaceSummary(row))
       : [];
+  },
+
+  getWorkspaceRuns: async (
+    workspaceId: string,
+    opts: { limit?: number; offset?: number } = {},
+  ): Promise<WorkspaceRunList> => {
+    const limit = opts.limit ?? 20;
+    const offset = opts.offset ?? 0;
+    const url = new URL(`${API_BASE}/api/v3/runs`);
+    url.searchParams.set("workspace_id", workspaceId);
+    url.searchParams.set("limit", String(limit));
+    url.searchParams.set("offset", String(offset));
+    const res = await apiFetch(url.toString());
+    if (!res.ok) {
+      throw new Error(`Failed to load runs: ${await readErrorMessage(res)}`);
+    }
+    const payload = await res.json();
+    const rawItems = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.items)
+        ? payload.items
+        : [];
+    return {
+      items: rawItems.map((row: unknown) => normalizeWorkspaceRun(row)),
+      total: asFiniteNumber(payload?.total) ?? rawItems.length,
+      limit: asFiniteNumber(payload?.limit) ?? limit,
+      offset: asFiniteNumber(payload?.offset) ?? offset,
+    };
+  },
+
+  getWorkspaceRun: async (runId: string): Promise<WorkspaceRun> => {
+    const res = await apiFetch(
+      `${API_BASE}/api/v3/runs/${encodeURIComponent(runId)}`,
+    );
+    if (!res.ok) {
+      throw new Error(`Failed to load run: ${await readErrorMessage(res)}`);
+    }
+    return normalizeWorkspaceRun(await res.json());
   },
 
   createWorkspace: async (payload: {
@@ -3444,7 +4002,15 @@ export const api = {
     if (!res.ok) {
       throw new Error(`Failed to load workspace: ${await readErrorMessage(res)}`);
     }
-    return res.json();
+    const data = (await res.json()) as WorkspaceDetail;
+    return {
+      ...data,
+      messages: Array.isArray(data.messages)
+        ? data.messages
+            .map(normalizeWorkspaceMessage)
+            .filter((message): message is WorkspaceMessage => Boolean(message))
+        : [],
+    };
   },
 
   updateWorkspace: async (
@@ -3562,6 +4128,7 @@ export const api = {
       sender_member_id: string;
       message_text?: string | null;
       file_refs?: WorkspaceFileRef[];
+      ping_user_ids?: string[];
     },
   ): Promise<WorkspaceMessage> => {
     const res = await apiFetch(
@@ -3575,7 +4142,53 @@ export const api = {
     if (!res.ok) {
       throw new Error(`Failed to post message: ${await readErrorMessage(res)}`);
     }
-    return parseRow(await res.json()) as WorkspaceMessage;
+    const message = normalizeWorkspaceMessage(await res.json());
+    if (!message) {
+      throw new Error("Failed to post message: invalid response");
+    }
+    return message;
+  },
+
+  getWorkspacePeople: async (
+    workspaceId: string,
+  ): Promise<WorkspacePerson[]> => {
+    const res = await apiFetch(
+      `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}/people`,
+    );
+    if (!res.ok) {
+      throw new Error(
+        `Failed to load workspace people: ${await readErrorMessage(res)}`,
+      );
+    }
+    const data = await res.json();
+    const rows = Array.isArray(data)
+      ? data
+      : Array.isArray((data as { people?: unknown }).people)
+        ? (data as { people: unknown[] }).people
+        : [];
+    return rows
+      .map(normalizeWorkspacePerson)
+      .filter((person): person is WorkspacePerson => Boolean(person));
+  },
+
+  resolveWorkspaceMentions: async (
+    workspaceId: string,
+    payload: { message_text: string; sender_member_id: string },
+  ): Promise<WorkspaceMentionResolve> => {
+    const res = await apiFetch(
+      `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}/messages/resolve-mentions`,
+      {
+        method: "POST",
+        headers: getJsonHeaders(),
+        body: JSON.stringify(payload),
+      },
+    );
+    if (!res.ok) {
+      throw new Error(
+        `Failed to resolve mentions: ${await readErrorMessage(res)}`,
+      );
+    }
+    return normalizeMentionResolve(await res.json());
   },
 
   getWorkspacePointers: async (
@@ -3604,6 +4217,7 @@ export const api = {
       status?: WorkspacePointerStatus;
       sort_order?: number;
       created_by_member_id?: string | null;
+      assignee_member_id?: string | null;
     },
   ): Promise<WorkspaceTaskPointer> => {
     const res = await apiFetch(
@@ -3628,6 +4242,7 @@ export const api = {
       description?: string | null;
       status?: WorkspacePointerStatus;
       sort_order?: number;
+      assignee_member_id?: string | null;
     },
   ): Promise<WorkspaceTaskPointer> => {
     const res = await apiFetch(

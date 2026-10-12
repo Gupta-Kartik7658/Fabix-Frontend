@@ -34,8 +34,11 @@ import {
   ExternalLink,
   FileText,
   HelpCircle,
+  Inbox,
   LayoutDashboard,
   LogOut,
+  Map,
+  MessagesSquare,
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
@@ -50,6 +53,7 @@ import {
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { useUser } from '@/lib/hooks';
+import { requestProductTour } from '@/lib/productTour';
 
 interface Command {
   id: string;
@@ -144,12 +148,14 @@ export function CommandPalette() {
       icon: LucideIcon;
       keywords: string[];
     }> = [
+      { label: 'Inbox', href: '/dashboard/inbox', icon: Inbox, keywords: ['invites', 'mentions', 'mail'] },
+      { label: 'Workspaces', href: '/dashboard/workspaces', icon: MessagesSquare, keywords: ['rooms', 'agents', 'collaboration'] },
       { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, keywords: ['home', 'overview'] },
       { label: 'Runs', href: '/dashboard/runs', icon: Activity, keywords: ['actions', 'history', 'log'] },
-      { label: 'Audit Trail', href: '/dashboard/audit', icon: FileText, keywords: ['events', 'log', 'history'] },
+      { label: 'Audit', href: '/dashboard/audit', icon: FileText, keywords: ['audit trail', 'events', 'log', 'history'] },
       { label: 'Freeze Windows', href: '/dashboard/freeze-window', icon: Clock, keywords: ['schedule', 'pause'] },
       { label: 'Connectors', href: '/dashboard/connectors', icon: Boxes, keywords: ['integrations', 'catalog', 'slack', 'linear', 'jira', 'terraform', 'postgres', 'roadmap'] },
-      { label: 'Analytics', href: '/dashboard/token-spenditure', icon: Coins, keywords: ['usage', 'cost', 'billing', 'token spenditure', 'token spend'] },
+      { label: 'Usage', href: '/dashboard/token-spenditure', icon: Coins, keywords: ['analytics', 'usage', 'cost', 'billing', 'token spenditure', 'token spend'] },
       { label: 'Memory', href: '/dashboard/memory', icon: BrainCircuit, keywords: ['context', 'remember', 'agent'] },
       { label: 'Prompts', href: '/dashboard/prompts', icon: ScrollText, keywords: ['instructions', 'daily', 'reusable', 'agent'] },
       { label: 'Settings', href: '/dashboard/settings', icon: Settings, keywords: ['account', 'preferences'] },
@@ -184,6 +190,18 @@ export function CommandPalette() {
             localStorage.setItem('aegis_theme', 'dark');
           }
           setOpen(false);
+        },
+      },
+      {
+        id: 'product-tour',
+        label: 'Take product tour',
+        hint: 'Optional',
+        icon: Map,
+        keywords: ['tour', 'guide', 'walkthrough', 'onboarding', 'intro', 'help', 'agent', 'memory', 'prompts'],
+        group: 'Actions' as const,
+        perform: () => {
+          setOpen(false);
+          requestProductTour();
         },
       },
       {
