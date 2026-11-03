@@ -1,473 +1,412 @@
 'use client';
 
 /**
- * Inbox — `/dashboard/inbox`.
+ * Activity Center — `/dashboard/inbox`.
  *
- * Three real sources, composed client-side (there is no combined inbox
- * query): PING notifications, pointed_at_you pointers, and pending
- * workspace invites. Failed-run items are not listed — that field is
- * still deferred. No invented per-item unread flag on pointers.
+ * The feed is composed client-side from real sources (there is no combined
+ * inbox query): PING notifications, pointed_at_you pointers, pending
+ * workspace invites, and configured connectors reporting last_error or
+ * revoked_at. Only PINGs carry a server read flag; other items are "new"
+ * while they are still open.
+ *
+ * Metrics and supporting panels read existing list/analytics endpoints and
+ * render only fields those payloads include.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Inbox } from 'lucide-react';
+import { Activity, Boxes, CheckCheck, Coins, MessagesSquare, Settings2 } from 'lucide-react';
 import Topbar from '@/components/layout/Topbar';
-import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
-import EmptyState from '@/components/ui/EmptyState';
-import ErrorBanner from '@/components/ui/ErrorBanner';
-import { RelativeTime } from '@/components/ui/RelativeTime';
-import { Skeleton } from '@/components/ui/Skeleton';
-import { AgentGlyph } from '@/components/workspaces/agent-visuals';
+import { useToast } from '@/components/ui/Toast';
 import { WorkspaceDemoGate } from '@/components/workspaces/WorkspaceDemoGate';
-import { api, type WorkspaceInvite, type WorkspaceTaskPointer } from '@/lib/api';
+import { ActivityFeed } from '@/components/activity/ActivityFeed';
+import {
+  ConnectorHealthPanel,
+  ExecutionsPanel,
+  UsagePanel,
+} from '@/components/activity/ActivityPanels';
+import {
+  INTERNAL_CONNECTOR_KEYS,
+  connectorDisplayName,
+  connectorIssueToActivity,
+  errorMessage,
+  finiteNumber,
+  inviteToActivity,
+  mentionToActivity,
+  pointerToActivity,
+  usageRangeLabel,
+  type ActivityItem,
+  type ConnectorRow,
+} from '@/components/activity/activity-model';
+import { ACTIVITY_THEME, MetricCard } from '@/components/activity/activity-ui';
+import {
+  api,
+  type RunRecord,
+  type WorkspaceInvite,
+  type WorkspaceSummary,
+} from '@/lib/api';
+import { connectorNeedsAttention } from '@/lib/connectorCredentials';
+import { useUser } from '@/lib/hooks';
 import { normalizeNotificationType } from '@/lib/notifications';
-import type { UserNotification } from '@/lib/types';
-import { cn } from '@/lib/utils';
+import type { TokenAnalyticsResponse, UserNotification } from '@/lib/types';
 
-type MentionItem = {
-  kind: 'mention';
-  id: string;
-  handle: string;
-  body: string;
-  workspaceId: string | null;
-  workspaceTitle: string;
-  messageId: string | null;
-  createdAt: string;
-  unread: boolean;
-};
-
-type PointerItem = {
-  kind: 'pointer';
-  id: string;
-  handle: string;
-  title: string;
-  workspaceId: string;
-  workspaceTitle: string;
-  createdAt: string;
-};
-
-type InviteItem = {
-  kind: 'invite';
-  id: string;
-  handle: string | null;
-  workspaceTitle: string;
-  inviteCode: string;
-  createdAt: string | null;
-};
-
-type InboxItem = MentionItem | PointerItem | InviteItem;
-
-function leadingHandle(text: string | null | undefined): string | null {
-  const match = /^@([a-z0-9_-]+)/i.exec((text ?? '').trim());
-  return match ? match[1] : null;
-}
-
-function sortByTimeDesc(left: string | null, right: string | null): number {
-  return new Date(right ?? 0).getTime() - new Date(left ?? 0).getTime();
-}
+const NOTIFICATION_PAGE_SIZE = 25;
 
 export default function DashboardInboxPage() {
   return (
     <>
-      <Topbar title="Inbox" subtitle="everything an agent has pointed at you" />
+      <Topbar title="Activity Center" crumb="Fabix" />
       <WorkspaceDemoGate>
-        <InboxList />
+        <ActivityCenter />
       </WorkspaceDemoGate>
     </>
   );
 }
 
-function InboxList() {
-  const [mentions, setMentions] = useState<MentionItem[] | null>(null);
-  const [pointers, setPointers] = useState<PointerItem[]>([]);
-  const [invites, setInvites] = useState<InviteItem[]>([]);
-  const [error, setError] = useState<string | null>(null);
+function ActivityCenter() {
+  const toast = useToast();
+  const { user } = useUser();
+
+  const [notifications, setNotifications] = useState<UserNotification[] | null>(null);
+  const [notificationTotal, setNotificationTotal] = useState(0);
+  const [notificationOffset, setNotificationOffset] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [autoLoad, setAutoLoad] = useState(true);
+  const [taskItems, setTaskItems] = useState<ActivityItem[]>([]);
+  const [inviteItems, setInviteItems] = useState<ActivityItem[]>([]);
+  const [feedError, setFeedError] = useState<string | null>(null);
+
+  const [workspaces, setWorkspaces] = useState<WorkspaceSummary[] | null>(null);
+  const [workspacesError, setWorkspacesError] = useState(false);
+  const [runs, setRuns] = useState<RunRecord[] | null>(null);
+  const [runTotal, setRunTotal] = useState<number | null>(null);
+  const [runsError, setRunsError] = useState<string | null>(null);
+  const [usage, setUsage] = useState<TokenAnalyticsResponse | null>(null);
+  const [usageError, setUsageError] = useState<string | null>(null);
+  const [connectors, setConnectors] = useState<ConnectorRow[] | null>(null);
+  const [connectorsError, setConnectorsError] = useState<string | null>(null);
+
   const [markingId, setMarkingId] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
 
-  const load = useCallback(async () => {
-    setError(null);
+  const loadFeed = useCallback(async () => {
+    setFeedError(null);
+    const workspacesPromise = api.getWorkspaces().then(
+      (rows) => {
+        setWorkspacesError(false);
+        setWorkspaces(rows);
+        return rows;
+      },
+      () => {
+        setWorkspacesError(true);
+        setWorkspaces([]);
+        return [] as WorkspaceSummary[];
+      },
+    );
     try {
-      const [notificationPage, inviteRows, workspaces] = await Promise.all([
-        api.getNotifications({ limit: 50, offset: 0 }),
+      const [page, inviteRows, workspaceRows] = await Promise.all([
+        api.getNotifications({ limit: NOTIFICATION_PAGE_SIZE, offset: 0 }),
         api.getWorkspaceInviteInbox().catch(() => [] as WorkspaceInvite[]),
-        api.getWorkspaces().catch(() => []),
+        workspacesPromise,
       ]);
 
-      const pingItems: MentionItem[] = notificationPage.items
-        .filter((row) => normalizeNotificationType(row.notification_type) === 'PING')
-        .map(notificationToMention);
-
       const pointerBundles = await Promise.all(
-        workspaces.map(async (workspace) => {
+        workspaceRows.map(async (workspace) => {
           try {
             const rows = await api.getWorkspacePointers(workspace.id);
             const mine = rows.filter(
               (pointer) => pointer.pointed_at_you === true && pointer.status !== 'done',
             );
-            if (mine.length === 0) return [] as PointerItem[];
+            if (mine.length === 0) return [] as ActivityItem[];
             const detail = await api.getWorkspace(workspace.id).catch(() => null);
             const agents = new Map((detail?.agents ?? []).map((agent) => [agent.id, agent]));
             return mine.map((pointer) =>
-              pointerToItem(pointer, workspace.id, workspace.title, agents),
+              pointerToActivity(pointer, workspace.id, workspace.title, agents),
             );
           } catch {
-            return [] as PointerItem[];
+            return [] as ActivityItem[];
           }
         }),
       );
 
-      setMentions(pingItems);
-      setPointers(pointerBundles.flat());
-      setInvites(
-        inviteRows
-          .filter((invite) => invite.status === 'pending')
-          .map(inviteToItem),
+      setNotifications(page.items);
+      setNotificationTotal(page.total);
+      setNotificationOffset(page.items.length);
+      setTaskItems(pointerBundles.flat());
+      setInviteItems(
+        inviteRows.filter((invite) => invite.status === 'pending').map(inviteToActivity),
       );
     } catch (e) {
-      setMentions([]);
-      setPointers([]);
-      setInvites([]);
-      setError(e instanceof Error ? e.message : 'Could not load inbox.');
+      setNotifications((prev) => prev ?? []);
+      setFeedError(errorMessage(e, 'Could not load activity.'));
     }
   }, []);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const loadInsights = useCallback(async () => {
+    setRunsError(null);
+    setUsageError(null);
+    setConnectorsError(null);
 
-  const unreadMentions = useMemo(
-    () =>
-      (mentions ?? [])
-        .filter((item) => item.unread)
-        .sort((a, b) => sortByTimeDesc(a.createdAt, b.createdAt)),
-    [mentions],
-  );
-  const earlierMentions = useMemo(
-    () =>
-      (mentions ?? [])
-        .filter((item) => !item.unread)
-        .sort((a, b) => sortByTimeDesc(a.createdAt, b.createdAt)),
-    [mentions],
-  );
-  const openPointers = useMemo(
-    () => [...pointers].sort((a, b) => sortByTimeDesc(a.createdAt, b.createdAt)),
-    [pointers],
-  );
-  const openInvites = useMemo(
-    () => [...invites].sort((a, b) => sortByTimeDesc(a.createdAt, b.createdAt)),
-    [invites],
-  );
+    const [runsResult, usageResult, connectorsResult] = await Promise.allSettled([
+      api.getRunsPage({ page: 1, page_size: 5 }),
+      loadUsage(user?.id),
+      loadConnectors(),
+    ]);
 
-  const openItems: InboxItem[] = useMemo(
-    () =>
-      [...unreadMentions, ...openPointers, ...openInvites].sort((a, b) =>
-        sortByTimeDesc(itemTime(a), itemTime(b)),
-      ),
-    [unreadMentions, openPointers, openInvites],
-  );
-
-  const openCount = openItems.length;
-  const loading = mentions === null;
-
-  const handleMarkRead = async (id: string) => {
-    if (markingId) return;
-    setMarkingId(id);
-    try {
-      const updated = await api.markNotificationRead(id);
-      setMentions((prev) =>
-        (prev ?? []).map((item) =>
-          item.id === id ? { ...item, unread: !updated.is_read } : item,
-        ),
-      );
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not mark as read.');
-    } finally {
-      setMarkingId(null);
+    if (runsResult.status === 'fulfilled') {
+      setRuns(runsResult.value.items);
+      setRunTotal(runsResult.value.total);
+    } else {
+      setRuns([]);
+      setRunTotal(null);
+      setRunsError(errorMessage(runsResult.reason, 'Could not load executions.'));
     }
-  };
+
+    if (usageResult.status === 'fulfilled') {
+      setUsage(usageResult.value);
+    } else {
+      setUsage(null);
+      setUsageError(errorMessage(usageResult.reason, 'Could not load usage.'));
+    }
+
+    if (connectorsResult.status === 'fulfilled') {
+      setConnectors(connectorsResult.value);
+    } else {
+      setConnectors([]);
+      setConnectorsError(errorMessage(connectorsResult.reason, 'Could not load connectors.'));
+    }
+  }, [user?.id]);
+
+  const loadAll = useCallback(async () => {
+    await Promise.all([loadFeed(), loadInsights()]);
+  }, [loadFeed, loadInsights]);
+
+  useEffect(() => {
+    void loadAll();
+  }, [loadAll]);
+
+  const hasMore = notifications !== null && notificationOffset < notificationTotal;
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await api.getNotifications({
+        limit: NOTIFICATION_PAGE_SIZE,
+        offset: notificationOffset,
+      });
+      setNotifications((prev) => {
+        const seen = new Set((prev ?? []).map((row) => row.id));
+        return [...(prev ?? []), ...page.items.filter((row) => !seen.has(row.id))];
+      });
+      setNotificationOffset(notificationOffset + page.items.length);
+      setNotificationTotal(page.items.length === 0 ? notificationOffset : page.total);
+      setAutoLoad(true);
+    } catch (e) {
+      setAutoLoad(false);
+      toast.error(errorMessage(e, 'Could not load older notifications.'));
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [hasMore, loadingMore, notificationOffset, toast]);
+
+  const mentionItems = useMemo(
+    () =>
+      (notifications ?? [])
+        .filter((row) => normalizeNotificationType(row.notification_type) === 'PING')
+        .map(mentionToActivity),
+    [notifications],
+  );
+
+  const systemItems = useMemo(
+    () =>
+      (connectors ?? [])
+        .map(connectorIssueToActivity)
+        .filter((item): item is ActivityItem => item !== null),
+    [connectors],
+  );
+
+  const feedItems = useMemo(
+    () => [...mentionItems, ...taskItems, ...inviteItems, ...systemItems],
+    [mentionItems, taskItems, inviteItems, systemItems],
+  );
+
+  const unreadMentions = mentionItems.filter((item) => item.isNew).length;
+
+  const handleMarkRead = useCallback(
+    async (id: string) => {
+      if (markingId) return;
+      setMarkingId(id);
+      try {
+        const updated = await api.markNotificationRead(id);
+        setNotifications((prev) =>
+          (prev ?? []).map((row) =>
+            row.id === id ? { ...row, is_read: updated.is_read, read_at: updated.read_at } : row,
+          ),
+        );
+      } catch (e) {
+        toast.error(errorMessage(e, 'Could not mark as read.'));
+      } finally {
+        setMarkingId(null);
+      }
+    },
+    [markingId, toast],
+  );
 
   const handleMarkAllRead = async () => {
-    if (markingAll || unreadMentions.length === 0) return;
+    if (markingAll || unreadMentions === 0) return;
     setMarkingAll(true);
     try {
       await api.markAllNotificationsRead();
-      setMentions((prev) => (prev ?? []).map((item) => ({ ...item, unread: false })));
+      setNotifications((prev) => (prev ?? []).map((row) => ({ ...row, is_read: true })));
+      toast.success('All notifications marked as read');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not mark all as read.');
+      toast.error(errorMessage(e, 'Could not mark all as read.'));
     } finally {
       setMarkingAll(false);
     }
   };
 
+  const agentCount =
+    workspaces && !workspacesError
+      ? workspaces.reduce((sum, workspace) => sum + finiteNumber(workspace.agent_count), 0)
+      : null;
+  const connectedCount = connectors
+    ? connectors.filter((row) => row.status.is_enabled !== false && !connectorNeedsAttention(row.status)).length
+    : null;
+  const attentionCount = connectors
+    ? connectors.filter((row) => connectorNeedsAttention(row.status)).length
+    : 0;
+
   return (
-    <div className="mx-auto w-full max-w-[820px] px-6 py-6">
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-[22px] font-semibold tracking-[-0.03em] text-[var(--neutral-strong-950)]">
-            Inbox
-          </h1>
-          <p className="mt-1 text-[13px] text-[var(--neutral-sub-600)]">
-            {loading ? (
-              <span className="inline-block h-4 w-64 animate-pulse rounded bg-[var(--neutral-weak-50)]" />
-            ) : (
-              <>
-                {openCount} open · mentions, pings, and tasks pointed at you
-              </>
-            )}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => void handleMarkAllRead()}
-            disabled={markingAll || unreadMentions.length === 0}
-            className="text-[13px] font-medium text-[var(--neutral-sub-600)] underline-offset-2 hover:text-[var(--neutral-strong-950)] hover:underline disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Mark all read
-          </button>
-          <Link href="/dashboard/settings#profile">
-            <Button variant="secondary" size="sm">
-              Notification settings
-            </Button>
-          </Link>
-        </div>
-      </div>
-
-      <div className="mb-8 rounded-xl border border-[var(--stroke-soft-200)] bg-[var(--neutral-weak-50)] px-4 py-3">
-        <p className="text-[13px] leading-[1.55] text-[var(--neutral-sub-600)]">
-          Two things can reach you here: an agent pings you in a workspace, or a task is pointed at
-          you. Workspace invites land here too. Failed runs stay on the Runs page.
-        </p>
-      </div>
-
-      {error && (
-        <div className="mb-6">
-          <ErrorBanner message={error} onDismiss={() => setError(null)} onRetry={load} />
-        </div>
-      )}
-
-      {loading && (
-        <div className="flex flex-col gap-2">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <div
-              key={index}
-              className="rounded-xl border border-[var(--stroke-soft-200)] bg-[var(--bg-surface)] px-4 py-4"
+    <div style={ACTIVITY_THEME} className="min-h-[calc(100dvh-56px)]">
+      <div className="mx-auto w-full max-w-[1320px] space-y-6 px-4 pb-12 pt-8 sm:px-6 lg:px-8">
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-[640px]">
+            <h1 className="text-[28px] font-semibold leading-[1.15] tracking-[-0.03em] text-[var(--ac-text)] sm:text-[30px]">
+              Activity Center
+            </h1>
+            <p className="mt-2 text-[14px] leading-[1.55] text-[var(--ac-text-2)]">
+              Stay updated on conversations, assigned tasks and everything happening across your
+              workspaces.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/dashboard/settings#profile"
+              className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[var(--ac-card)] px-3 text-[12.5px] font-medium text-[var(--ac-text-2)] ring-1 ring-inset ring-[var(--ac-border)] transition-colors duration-150 hover:bg-[var(--ac-elevated)] hover:text-[var(--ac-text)]"
             >
-              <div className="flex gap-3">
-                <Skeleton className="h-7 w-7 rounded-lg" />
-                <div className="min-w-0 flex-1">
-                  <Skeleton className="h-4 w-40" />
-                  <Skeleton className="mt-2 h-3 w-full max-w-[420px]" />
-                  <Skeleton className="mt-3 h-7 w-36" />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+              <Settings2 size={14} />
+              Notification preferences
+            </Link>
+            <button
+              type="button"
+              onClick={() => void handleMarkAllRead()}
+              disabled={markingAll || unreadMentions === 0}
+              className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[var(--ac-green)] px-3.5 text-[12.5px] font-semibold text-[#04130c] transition-colors duration-150 hover:bg-[var(--ac-mint)] disabled:cursor-not-allowed disabled:bg-[var(--ac-card)] disabled:text-[var(--ac-muted)] disabled:ring-1 disabled:ring-inset disabled:ring-[var(--ac-border)]"
+            >
+              <CheckCheck size={14} />
+              {markingAll ? 'Marking…' : 'Mark all as read'}
+            </button>
+          </div>
+        </header>
 
-      {!loading && openItems.length === 0 && earlierMentions.length === 0 && (
-        <div className="rounded-xl border border-[var(--stroke-soft-200)] bg-[var(--bg-surface)] py-8">
-          <EmptyState
-            icon={<Inbox size={20} />}
-            title="Inbox is clear"
-            description="When an agent pings you or points a task at you, it shows up here."
-            compact
+        <section aria-label="Overview" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label="Workspaces"
+            href="/dashboard/workspaces"
+            icon={<MessagesSquare size={16} />}
+            loading={workspaces === null}
+            value={workspaces && !workspacesError ? workspaces.length.toLocaleString() : '—'}
+            description={
+              agentCount === null
+                ? 'Could not load workspaces'
+                : `${agentCount.toLocaleString()} ${agentCount === 1 ? 'agent' : 'agents'} across workspaces`
+            }
           />
-        </div>
-      )}
-
-      {!loading && openItems.length > 0 && (
-        <section className="mb-10">
-          <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--neutral-soft-400)]">
-            Unread {openCount}
-          </h2>
-          <div className="flex flex-col gap-2">
-            {openItems.map((item) => (
-              <InboxCard
-                key={`${item.kind}-${item.id}`}
-                item={item}
-                muted={false}
-                marking={markingId === item.id}
-                onMarkRead={item.kind === 'mention' ? () => void handleMarkRead(item.id) : undefined}
-              />
-            ))}
-          </div>
+          <MetricCard
+            label="Total executions"
+            href="/dashboard/runs"
+            icon={<Activity size={16} />}
+            loading={runs === null && !runsError}
+            value={runTotal === null ? '—' : runTotal.toLocaleString()}
+            description={runTotal === null ? 'Could not load executions' : 'Recorded tool runs'}
+          />
+          <MetricCard
+            label="Connected connectors"
+            href="/dashboard/connectors"
+            icon={<Boxes size={16} />}
+            loading={connectors === null && !connectorsError}
+            value={connectedCount === null || connectorsError ? '—' : connectedCount.toLocaleString()}
+            description={
+              connectorsError
+                ? 'Could not load connectors'
+                : attentionCount > 0
+                  ? `${attentionCount.toLocaleString()} need attention`
+                  : `${(connectors?.length ?? 0).toLocaleString()} configured`
+            }
+          />
+          <MetricCard
+            label="Token consumption"
+            href="/dashboard/token-spenditure"
+            icon={<Coins size={16} />}
+            loading={usage === null && !usageError}
+            value={usage ? finiteNumber(usage.summary.total_tokens).toLocaleString() : '—'}
+            description={usage ? usageRangeLabel(usage.date_range) : 'Could not load usage'}
+          />
         </section>
-      )}
 
-      {!loading && earlierMentions.length > 0 && (
-        <section>
-          <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--neutral-soft-400)]">
-            Earlier
-            <span className="ml-1.5 font-medium normal-case tracking-normal text-[var(--neutral-soft-400)]">
-              read
-            </span>
-          </h2>
-          <div className="flex flex-col gap-2">
-            {earlierMentions.map((item) => (
-              <InboxCard key={`${item.kind}-${item.id}`} item={item} muted />
-            ))}
-          </div>
+        <ActivityFeed
+          items={feedItems}
+          loading={notifications === null}
+          error={feedError}
+          onRetry={() => void loadFeed()}
+          markingId={markingId}
+          onMarkRead={(id) => void handleMarkRead(id)}
+          onCopied={() => toast.success('Link copied')}
+          hasMore={hasMore}
+          loadingMore={loadingMore}
+          autoLoad={autoLoad}
+          onLoadMore={() => void loadMore()}
+        />
+
+        <section aria-label="Supporting panels" className="grid grid-cols-1 gap-4 pt-2 lg:grid-cols-3">
+          <ExecutionsPanel runs={runs} total={runTotal} error={runsError} onRetry={() => void loadInsights()} />
+          <ConnectorHealthPanel connectors={connectors} error={connectorsError} onRetry={() => void loadInsights()} />
+          <UsagePanel usage={usage} error={usageError} onRetry={() => void loadInsights()} />
         </section>
-      )}
+      </div>
     </div>
   );
 }
 
-function itemTime(item: InboxItem): string | null {
-  return item.createdAt;
+async function loadUsage(userId: string | undefined): Promise<TokenAnalyticsResponse> {
+  let id = userId;
+  if (!id) {
+    const details = await api.getUserDetails();
+    id = details.id;
+  }
+  if (!id) throw new Error('Usage could not be loaded.');
+  return api.getTokenUsageAnalytics(id, { date_range: '30d', allocation: 'both' });
 }
 
-function notificationToMention(row: UserNotification): MentionItem {
-  const body = row.target_descriptor?.trim() || 'Pinged you in a workspace.';
-  return {
-    kind: 'mention',
-    id: row.id,
-    handle: leadingHandle(row.target_descriptor) ?? 'agent',
-    body,
-    workspaceId: row.workspace_id ?? null,
-    workspaceTitle: row.room_name?.trim() || 'Workspace',
-    messageId: row.workspace_message_id ?? null,
-    createdAt: row.created_at,
-    unread: !row.is_read,
-  };
-}
-
-function pointerToItem(
-  pointer: WorkspaceTaskPointer,
-  workspaceId: string,
-  workspaceTitle: string,
-  agents: Map<string, { handle: string }>,
-): PointerItem {
-  const author = pointer.created_by_member_id
-    ? agents.get(pointer.created_by_member_id)
-    : null;
-  return {
-    kind: 'pointer',
-    id: pointer.id,
-    handle: author?.handle || pointer.assignee_handle || 'agent',
-    title: pointer.title,
-    workspaceId,
-    workspaceTitle,
-    createdAt: pointer.created_at,
-  };
-}
-
-function inviteToItem(invite: WorkspaceInvite): InviteItem {
-  return {
-    kind: 'invite',
-    id: invite.id || invite.invite_code,
-    handle: invite.suggested_handle,
-    workspaceTitle: invite.workspace_title || 'Workspace',
-    inviteCode: invite.invite_code,
-    createdAt: invite.created_at,
-  };
-}
-
-function InboxCard({
-  item,
-  muted,
-  marking = false,
-  onMarkRead,
-}: {
-  item: InboxItem;
-  muted: boolean;
-  marking?: boolean;
-  onMarkRead?: () => void;
-}) {
-  const handle = item.kind === 'invite' ? item.handle || 'invite' : item.handle;
-
-  return (
-    <article
-      className={cn(
-        'rounded-xl border border-[var(--stroke-soft-200)] bg-[var(--bg-surface)] px-4 py-3.5',
-        !muted && 'border-l-[3px] border-l-[var(--attention)]',
-        muted && 'opacity-70',
-      )}
-    >
-      <div className="flex gap-3">
-        <AgentGlyph handle={handle} size="md" />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-[13px] font-medium text-[var(--neutral-strong-950)]">
-              @{handle}
-            </span>
-            <Badge tone={item.kind === 'invite' ? 'primary' : 'neutral'}>
-              {item.kind === 'mention'
-                ? 'mentioned you'
-                : item.kind === 'pointer'
-                  ? 'task pointer'
-                  : 'invite'}
-            </Badge>
-          </div>
-          <p
-            className={cn(
-              'mt-1.5 text-[13.5px] leading-[1.55]',
-              muted ? 'text-[var(--neutral-sub-600)]' : 'text-[var(--neutral-strong-950)]',
-            )}
-          >
-            {item.kind === 'mention' && item.body}
-            {item.kind === 'pointer' && `pointed a task at you: ${item.title}`}
-            {item.kind === 'invite' &&
-              `invited your agent${item.handle ? ` as @${item.handle}` : ''} to ${item.workspaceTitle}`}
-          </p>
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            {item.kind === 'mention' && item.workspaceId && (
-              <Link
-                href={mentionHref(item)}
-                className="btn-primary inline-flex h-7 items-center rounded-[8px] px-2.5 text-[12px] font-medium"
-              >
-                Reply in the workspace
-              </Link>
-            )}
-            {item.kind === 'pointer' && (
-              <Link
-                href={`/workspaces/${item.workspaceId}?tab=tasks`}
-                className="inline-flex h-7 items-center rounded-[8px] border border-[var(--stroke-sub-300)] px-2.5 text-[12px] font-medium text-[var(--neutral-sub-600)] hover:bg-[var(--neutral-weak-50)] hover:text-[var(--neutral-strong-950)]"
-              >
-                Open the task
-              </Link>
-            )}
-            {item.kind === 'invite' && (
-              <Link
-                href={`/workspaces/join/${encodeURIComponent(item.inviteCode)}`}
-                className="btn-primary inline-flex h-7 items-center rounded-[8px] px-2.5 text-[12px] font-medium"
-              >
-                Join
-              </Link>
-            )}
-            {item.kind === 'mention' && onMarkRead && (
-              <button
-                type="button"
-                onClick={onMarkRead}
-                disabled={marking}
-                className="text-[12.5px] font-medium text-[var(--neutral-sub-600)] underline-offset-2 hover:text-[var(--neutral-strong-950)] hover:underline disabled:opacity-40"
-              >
-                Mark read
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="hidden shrink-0 text-right sm:block">
-          <p className="max-w-[160px] truncate text-[12px] text-[var(--neutral-sub-600)]">
-            {item.workspaceTitle}
-          </p>
-          <RelativeTime
-            timestamp={item.createdAt}
-            className="mt-1 text-[11px] text-[var(--neutral-soft-400)]"
-          />
-        </div>
-      </div>
-    </article>
-  );
-}
-
-function mentionHref(item: MentionItem): string {
-  if (!item.workspaceId) return '/dashboard/workspaces';
-  const qs = item.messageId ? `?message=${encodeURIComponent(item.messageId)}` : '';
-  return `/workspaces/${item.workspaceId}${qs}`;
+async function loadConnectors(): Promise<ConnectorRow[]> {
+  const [catalog, credentials] = await Promise.all([
+    api.getConnectorCatalog(false),
+    api.getPrivateConnectorCredentials(),
+  ]);
+  const catalogByKey = new Map(catalog.map((item) => [item.connector_key, item]));
+  return credentials
+    .filter((status) => status.configured && !INTERNAL_CONNECTOR_KEYS.has(status.connector_key))
+    .map((status) => ({
+      key: status.connector_key,
+      name: connectorDisplayName(status.connector_key, catalogByKey.get(status.connector_key)),
+      status,
+    }))
+    .sort((left, right) => {
+      const leftAttention = connectorNeedsAttention(left.status);
+      const rightAttention = connectorNeedsAttention(right.status);
+      if (leftAttention !== rightAttention) return leftAttention ? -1 : 1;
+      return left.name.localeCompare(right.name);
+    });
 }

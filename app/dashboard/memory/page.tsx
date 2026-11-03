@@ -3,36 +3,48 @@
 /**
  * Memory — `/dashboard/memory`.
  *
- * List: PINNED / EVERYTHING ELSE. Body is Markdown (GFM). Share counts
- * come from GET /shares, not an invented field on the memory row.
+ * Two-pane library: explorer (PINNED / EVERYTHING ELSE) and a Markdown
+ * detail viewer. Share counts come from GET /shares per memory, not an
+ * invented field on the memory row.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
 import {
-  FileText,
-  MoreHorizontal,
-  Pencil,
+  AlignJustify,
+  ChevronDown,
+  Download,
+  Info,
+  LayoutList,
+  Link2,
   Pin,
-  PinOff,
-  Share2,
-  Trash2,
-  Zap,
+  Plus,
+  Search,
+  BookOpen,
+  X,
 } from 'lucide-react';
 import Topbar from '@/components/layout/Topbar';
+import { MemoryDetail } from '@/components/memory/MemoryDetail';
+import { MemoryEditorDialog } from '@/components/memory/MemoryEditorDialog';
+import { MemoryExplorer } from '@/components/memory/MemoryExplorer';
+import { RedeemShareDialog } from '@/components/memory/RedeemShareDialog';
 import { ShareMemoryDialog } from '@/components/memory/ShareMemoryDialog';
-import { Button } from '@/components/ui/Button';
+import {
+  MEMORY_FILTERS,
+  MEMORY_SORTS,
+  MEMORY_THEME,
+  compareBy,
+  isActiveShare,
+  matchesQuery,
+  sortMemories,
+  type MemoryDensity,
+  type MemoryFilter,
+  type MemorySort,
+} from '@/components/memory/memory-model';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import EmptyState from '@/components/ui/EmptyState';
-import ErrorBanner from '@/components/ui/ErrorBanner';
-import { Input } from '@/components/ui/Input';
-import { MarkdownContent } from '@/components/ui/MarkdownContent';
-import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
-import { Dialog } from '@/components/workspaces/Dialog';
 import { api } from '@/lib/api';
 import { useUser } from '@/lib/hooks';
-import type { Memory, MemoryShare } from '@/lib/types';
+import type { Memory } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 function isDemoMode(): boolean {
@@ -47,72 +59,36 @@ function isDemoMode(): boolean {
   }
 }
 
-function wordCount(value: string): number {
-  return value.trim().split(/\s+/).filter(Boolean).length;
-}
-
-function isActiveShare(share: MemoryShare): boolean {
-  return !share.status || share.status === 'pending';
-}
-
-function shareCountLabel(count: number | undefined): string | null {
-  if (count == null) return null;
-  if (count === 0) return 'no shares';
-  if (count === 1) return '1 share';
-  return `${count} shares`;
-}
-
-/** List rows show one line of plain text — never rendered Markdown. */
-function plainTextFromMarkdown(source: string): string {
-  return source
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/!\[[^\]]*]\([^)]*\)/g, ' ')
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/^\s*[-*+]\s+/gm, '')
-    .replace(/^\s*\d+\.\s+/gm, '')
-    .replace(/[*_~]+/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function sortMemories(list: Memory[]): Memory[] {
-  return [...list].sort((a, b) => {
-    if (Boolean(a.is_pinned) !== Boolean(b.is_pinned)) return a.is_pinned ? -1 : 1;
-    const ta = new Date(a.updated_at ?? a.created_at ?? 0).getTime();
-    const tb = new Date(b.updated_at ?? b.created_at ?? 0).getTime();
-    return tb - ta;
-  });
-}
+type EditorState = { open: boolean; editing: Memory | null; session: number };
 
 export default function MemoryPage() {
   const { user, isLoading: userLoading } = useUser();
   const toast = useToast();
-  const router = useRouter();
   const demo = useMemo(() => isDemoMode(), []);
   const effectiveUserId = user?.id ?? (demo ? 'preview-user' : null);
 
   const [memories, setMemories] = useState<Memory[]>([]);
   const [shareCounts, setShareCounts] = useState<Record<string, number>>({});
+  const [shareFailures, setShareFailures] = useState<Set<string>>(() => new Set());
+  const [sharesLoading, setSharesLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<MemoryFilter>('all');
+  const [sort, setSort] = useState<MemorySort>('updated');
+  const [density, setDensity] = useState<MemoryDensity>('comfortable');
+  const searchRef = useRef<HTMLInputElement>(null);
+
   const [shareMemory, setShareMemory] = useState<Memory | null>(null);
-  const [openMemory, setOpenMemory] = useState<Memory | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Memory | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pinningId, setPinningId] = useState<string | null>(null);
-  const [menuId, setMenuId] = useState<string | null>(null);
-
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editing, setEditing] = useState<Memory | null>(null);
-  const [draftTitle, setDraftTitle] = useState('');
-  const [draftBody, setDraftBody] = useState('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [editor, setEditor] = useState<EditorState>({ open: false, editing: null, session: 0 });
   const [saving, setSaving] = useState(false);
-
   const [redeemOpen, setRedeemOpen] = useState(false);
-  const [redeemCode, setRedeemCode] = useState('');
 
   const loadShareCounts = useCallback(async (rows: Memory[]) => {
     const entries = await Promise.all(
@@ -126,10 +102,18 @@ export default function MemoryPage() {
       }),
     );
     const next: Record<string, number> = {};
+    const failed: string[] = [];
     for (const [id, count] of entries) {
       if (typeof count === 'number') next[id] = count;
+      else failed.push(id);
     }
     setShareCounts((prev) => ({ ...prev, ...next }));
+    setShareFailures((prev) => {
+      const out = new Set(prev);
+      for (const [id] of entries) out.delete(id);
+      for (const id of failed) out.add(id);
+      return out;
+    });
   }, []);
 
   const fetchData = useCallback(async () => {
@@ -137,17 +121,21 @@ export default function MemoryPage() {
       if (!userLoading) {
         setMemories([]);
         setLoading(false);
+        setSharesLoading(false);
       }
-      return;
+      return [] as Memory[];
     }
+    setError(null);
     try {
-      const raw = await api.getMemories(effectiveUserId);
-      const data = sortMemories(raw);
+      const data = sortMemories(await api.getMemories(effectiveUserId));
       setMemories(data);
-      setError(null);
-      void loadShareCounts(data);
+      setSharesLoading(true);
+      void loadShareCounts(data).finally(() => setSharesLoading(false));
+      return data;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load memories');
+      setSharesLoading(false);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -158,51 +146,109 @@ export default function MemoryPage() {
     else if (!userLoading) {
       setMemories([]);
       setLoading(false);
+      setSharesLoading(false);
     }
   }, [effectiveUserId, userLoading, fetchData]);
 
-  const pinned = memories.filter((m) => m.is_pinned);
-  const rest = memories.filter((m) => !m.is_pinned);
+  const pinnedCount = memories.filter((m) => m.is_pinned).length;
+  const sharedCount = memories.filter((m) => (shareCounts[m.id] ?? 0) > 0).length;
 
-  const openCreate = () => {
-    setEditing(null);
-    setDraftTitle('');
-    setDraftBody('');
-    setEditorOpen(true);
-    setMenuId(null);
+  const visible = useMemo(
+    () =>
+      memories
+        .filter((m) => matchesQuery(m, query))
+        .filter((m) =>
+          filter === 'pinned' ? m.is_pinned : filter === 'shared' ? (shareCounts[m.id] ?? 0) > 0 : true,
+        )
+        .sort(compareBy(sort)),
+    [memories, query, filter, sort, shareCounts],
+  );
+  const visiblePinned = visible.filter((m) => m.is_pinned);
+  const visibleRest = visible.filter((m) => !m.is_pinned);
+  const ordered = useMemo(() => [...visiblePinned, ...visibleRest], [visiblePinned, visibleRest]);
+  const filtersActive = query.trim() !== '' || filter !== 'all';
+
+  const selected = memories.find((m) => m.id === selectedId) ?? null;
+  const panesRef = useRef<HTMLDivElement>(null);
+  const hasSelection = selected !== null;
+  const lastSelection = useRef(hasSelection);
+
+  useEffect(() => {
+    if (lastSelection.current === hasSelection) return;
+    lastSelection.current = hasSelection;
+    if (!window.matchMedia('(max-width: 1023px)').matches) return;
+    const top = panesRef.current?.getBoundingClientRect().top;
+    if (top !== undefined && (top < 110 || top > window.innerHeight * 0.35)) {
+      panesRef.current?.scrollIntoView({ block: 'start' });
+    }
+  }, [hasSelection]);
+
+  const clearFilters = () => {
+    setQuery('');
+    setFilter('all');
   };
 
-  const openEdit = (memory: Memory) => {
-    setEditing(memory);
-    setDraftTitle(memory.title);
-    setDraftBody(memory.memory);
-    setEditorOpen(true);
-    setMenuId(null);
-  };
+  const openCreate = () => setEditor((prev) => ({ open: true, editing: null, session: prev.session + 1 }));
+  const openEdit = (memory: Memory) =>
+    setEditor((prev) => ({ open: true, editing: memory, session: prev.session + 1 }));
+  const closeEditor = () => setEditor((prev) => ({ ...prev, open: false }));
 
-  const titleWords = wordCount(draftTitle);
-  const titleTooLong = titleWords > 4;
-  const canSave = draftTitle.trim().length > 0 && draftBody.trim().length > 0 && !titleTooLong;
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (editor.open || redeemOpen || shareMemory || pendingDelete) return;
+      const target = event.target as HTMLElement | null;
+      const typing =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.tagName === 'SELECT' ||
+        target?.isContentEditable;
+      if (typing) return;
+      if (event.key === '/') {
+        event.preventDefault();
+        searchRef.current?.focus();
+        return;
+      }
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        if (ordered.length === 0) return;
+        event.preventDefault();
+        const index = ordered.findIndex((m) => m.id === selectedId);
+        const next =
+          index === -1
+            ? event.key === 'ArrowDown'
+              ? 0
+              : ordered.length - 1
+            : Math.min(ordered.length - 1, Math.max(0, index + (event.key === 'ArrowDown' ? 1 : -1)));
+        setSelectedId(ordered[next].id);
+        return;
+      }
+      if (event.key === 'e' && selected) {
+        event.preventDefault();
+        openEdit(selected);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [editor.open, redeemOpen, shareMemory, pendingDelete, ordered, selectedId, selected]);
 
-  const handleSave = async () => {
-    if (!canSave || !effectiveUserId || saving) return;
+  const handleSave = async (payload: { title: string; memory: string }) => {
+    if (!effectiveUserId || saving) return;
+    const target = editor.editing;
     setSaving(true);
     try {
-      const payload = { title: draftTitle.trim(), memory: draftBody.trim() };
-      if (editing) {
-        const updated = await api.updateMemory(editing.id, effectiveUserId, payload);
+      if (target) {
+        const updated = await api.updateMemory(target.id, effectiveUserId, payload);
         setMemories((prev) => sortMemories(prev.map((m) => (m.id === updated.id ? updated : m))));
-        setOpenMemory((prev) => (prev?.id === updated.id ? updated : prev));
         toast.success('Memory updated');
       } else {
         const created = await api.createMemory(payload);
         setMemories((prev) => sortMemories([created, ...prev]));
         setShareCounts((prev) => ({ ...prev, [created.id]: 0 }));
-        toast.success('Memory added');
+        setSelectedId(created.id);
+        toast.success('Memory created');
       }
-      setEditorOpen(false);
+      closeEditor();
     } catch (err) {
-      toast.error(editing ? 'Failed to update memory' : 'Failed to add memory', {
+      toast.error(target ? 'Failed to update memory' : 'Failed to create memory', {
         description: err instanceof Error ? err.message : undefined,
       });
     } finally {
@@ -218,7 +264,7 @@ export default function MemoryPage() {
     try {
       await api.deleteMemory(mem.id, effectiveUserId);
       setMemories((prev) => prev.filter((m) => m.id !== mem.id));
-      if (openMemory?.id === mem.id) setOpenMemory(null);
+      setSelectedId((id) => (id === mem.id ? null : id));
       toast.success('Memory deleted');
     } catch (err) {
       toast.error('Failed to delete memory', {
@@ -230,17 +276,15 @@ export default function MemoryPage() {
   };
 
   const handlePin = async (memory: Memory) => {
-    if (!effectiveUserId) return;
+    if (!effectiveUserId || pinningId) return;
     const nextPinned = !memory.is_pinned;
     setPinningId(memory.id);
-    setMenuId(null);
     setMemories((prev) =>
       sortMemories(prev.map((m) => (m.id === memory.id ? { ...m, is_pinned: nextPinned } : m))),
     );
     try {
       const updated = await api.updateMemory(memory.id, effectiveUserId, { is_pinned: nextPinned });
       setMemories((prev) => sortMemories(prev.map((m) => (m.id === updated.id ? updated : m))));
-      setOpenMemory((prev) => (prev?.id === updated.id ? updated : prev));
     } catch (err) {
       setMemories((prev) =>
         sortMemories(prev.map((m) => (m.id === memory.id ? { ...m, is_pinned: !nextPinned } : m))),
@@ -253,436 +297,431 @@ export default function MemoryPage() {
     }
   };
 
-  const handleRedeem = () => {
-    const code = redeemCode.trim();
-    if (!code) return;
-    setRedeemOpen(false);
-    setRedeemCode('');
-    router.push(`/memory/share/${encodeURIComponent(code)}`);
+  const handleCopy = async (memory: Memory) => {
+    try {
+      await navigator.clipboard.writeText(memory.memory);
+      setCopiedId(memory.id);
+      window.setTimeout(() => setCopiedId((id) => (id === memory.id ? null : id)), 1600);
+    } catch {
+      toast.error('Could not copy to the clipboard');
+    }
   };
+
+  const handleImported = async (memory: Memory | null) => {
+    setRedeemOpen(false);
+    toast.success('Memory imported', { description: 'Your copy is now in the library.' });
+    if (memory) {
+      setMemories((prev) => sortMemories([memory, ...prev.filter((m) => m.id !== memory.id)]));
+      setShareCounts((prev) => ({ ...prev, [memory.id]: 0 }));
+      setSelectedId(memory.id);
+      clearFilters();
+    } else {
+      await fetchData();
+    }
+  };
+
+  const handleAlreadyImported = async (memoryId: string | null) => {
+    setRedeemOpen(false);
+    toast.success('Already in your library', { description: 'You imported this memory before.' });
+    const rows = await fetchData();
+    if (memoryId && rows?.some((m) => m.id === memoryId)) {
+      setSelectedId(memoryId);
+      clearFilters();
+    }
+  };
+
+  const busyIds = useMemo(
+    () => new Set([pinningId, deletingId].filter((id): id is string => Boolean(id))),
+    [pinningId, deletingId],
+  );
+
+  const sharedFailures = shareFailures.size;
 
   return (
     <>
-      <Topbar title="Memory" subtitle="your own library, shareable by link" />
+      <Topbar title="Memory" />
 
-      <div className="mx-auto w-full max-w-[780px] px-6 py-6">
-        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-[22px] font-semibold tracking-[-0.03em] text-[var(--neutral-strong-950)]">
-              Memory
-            </h1>
-            <p className="mt-1 text-[13px] text-[var(--neutral-sub-600)]">
-              {loading ? (
-                <span className="inline-block h-4 w-56 animate-pulse rounded bg-[var(--neutral-weak-50)]" />
-              ) : (
-                <>
-                  {memories.length} · your own library, shareable by link
-                </>
-              )}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setRedeemOpen(true)}
-              className="text-[13px] font-medium text-[var(--neutral-sub-600)] underline-offset-2 hover:text-[var(--neutral-strong-950)] hover:underline"
-            >
-              Redeem a share code
-            </button>
-            <Button variant="primary" onClick={openCreate} data-tour="new-memory">
-              New memory
-            </Button>
-          </div>
-        </div>
-
-        <div className="mb-8 flex gap-3 rounded-xl border border-[var(--stroke-soft-200)] bg-[var(--neutral-weak-50)] px-4 py-3">
-          <FileText className="mt-0.5 h-4 w-4 shrink-0 text-[var(--neutral-soft-400)]" strokeWidth={2} />
-          <p className="text-[13px] leading-[1.55] text-[var(--neutral-sub-600)]">
-            A memory is a title of four words or fewer and a body you write in Markdown.
-            Agents do not create them and nothing decays. Sharing is a link you can revoke.
-          </p>
-        </div>
-
-        {error && (
-          <div className="mb-6">
-            <ErrorBanner message={error} onDismiss={() => setError(null)} onRetry={fetchData} />
-          </div>
-        )}
-
-        {loading && <MemorySkeleton />}
-
-        {!loading && memories.length === 0 && (
-          <EmptyState
-            icon={<FileText className="h-5 w-5" />}
-            title="No memories yet"
-            description="Write a short title and a Markdown body. Agents carry it between sessions."
-          />
-        )}
-
-        {!loading && pinned.length > 0 && (
-          <section className="mb-8">
-            <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--neutral-soft-400)]">
-              Pinned {pinned.length}
-            </h2>
-            <div className="flex flex-col gap-3">
-              {pinned.map((memory) => (
-                <MemoryRow
-                  key={memory.id}
-                  memory={memory}
-                  shareCount={shareCounts[memory.id]}
-                  pinned
-                  busy={pinningId === memory.id || deletingId === memory.id}
-                  menuOpen={menuId === memory.id}
-                  onOpen={() => setOpenMemory(memory)}
-                  onToggleMenu={() => setMenuId((id) => (id === memory.id ? null : memory.id))}
-                  onCloseMenu={() => setMenuId(null)}
-                  onPin={() => void handlePin(memory)}
-                  onShare={() => {
-                    setMenuId(null);
-                    setShareMemory(memory);
-                  }}
-                  onEdit={() => openEdit(memory)}
-                  onDelete={() => {
-                    setMenuId(null);
-                    setPendingDelete(memory);
-                  }}
-                />
-              ))}
+      <div style={MEMORY_THEME} className="min-h-[calc(100dvh-56px)]">
+        <div className="mx-auto w-full max-w-[1600px] px-4 pb-8 pt-7 sm:px-6 lg:px-8">
+          <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="text-[30px] font-semibold leading-[1.15] tracking-[-0.03em] text-[var(--mm-text)]">
+                  Memory
+                </h1>
+                <RulesTooltip />
+              </div>
+              <p className="mt-1.5 text-[14px] leading-[1.55] text-[var(--mm-text-2)]">
+                Your persistent knowledge, available across agent sessions.
+              </p>
             </div>
-          </section>
-        )}
-
-        {!loading && rest.length > 0 && (
-          <section>
-            <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--neutral-soft-400)]">
-              Everything else {rest.length}
-            </h2>
-            <div className="flex flex-col gap-1">
-              {rest.map((memory) => (
-                <MemoryRow
-                  key={memory.id}
-                  memory={memory}
-                  shareCount={shareCounts[memory.id]}
-                  pinned={false}
-                  busy={pinningId === memory.id || deletingId === memory.id}
-                  menuOpen={menuId === memory.id}
-                  onOpen={() => setOpenMemory(memory)}
-                  onToggleMenu={() => setMenuId((id) => (id === memory.id ? null : memory.id))}
-                  onCloseMenu={() => setMenuId(null)}
-                  onPin={() => void handlePin(memory)}
-                  onShare={() => {
-                    setMenuId(null);
-                    setShareMemory(memory);
-                  }}
-                  onEdit={() => openEdit(memory)}
-                  onDelete={() => {
-                    setMenuId(null);
-                    setPendingDelete(memory);
-                  }}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-      </div>
-
-      <Dialog
-        open={openMemory !== null}
-        onOpenChange={(next) => {
-          if (!next) setOpenMemory(null);
-        }}
-        title={openMemory?.title ?? 'Memory'}
-        width={640}
-        footer={
-          openMemory ? (
-            <div className="flex flex-wrap justify-end gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  const mem = openMemory;
-                  setOpenMemory(null);
-                  openEdit(mem);
-                }}
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setRedeemOpen(true)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-[9px] bg-[var(--mm-panel)] px-3 text-[12.5px] font-medium text-[var(--mm-text-2)] ring-1 ring-inset ring-[var(--mm-border)] transition-colors duration-150 hover:bg-[var(--mm-elevated)] hover:text-[var(--mm-text)]"
               >
-                Edit
-              </Button>
-              <Button variant="primary" onClick={() => setOpenMemory(null)}>
-                Close
-              </Button>
+                <Download size={14} />
+                Redeem share code
+              </button>
+              <button
+                type="button"
+                onClick={openCreate}
+                data-tour="new-memory"
+                className="inline-flex h-9 items-center gap-1.5 rounded-[9px] bg-[var(--mm-green)] px-3.5 text-[12.5px] font-semibold text-[#04130c] transition-colors duration-150 hover:bg-[var(--mm-mint)]"
+              >
+                <Plus size={15} />
+                New memory
+              </button>
             </div>
-          ) : null
-        }
-      >
-        {openMemory ? (
-          <div className="max-h-[60vh] overflow-y-auto pr-1">
-            <MarkdownContent content={openMemory.memory} />
-          </div>
-        ) : null}
-      </Dialog>
+          </header>
 
-      <Dialog
-        open={editorOpen}
-        onOpenChange={setEditorOpen}
-        title={editing ? 'Edit memory' : 'New memory'}
-        description="Title is four words or fewer. The body is Markdown."
-        width={560}
-        footer={
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setEditorOpen(false)} disabled={saving}>
-              Cancel
-            </Button>
-            <Button variant="primary" onClick={() => void handleSave()} disabled={!canSave || saving}>
-              {saving ? 'Saving…' : editing ? 'Save' : 'Create'}
-            </Button>
-          </div>
-        }
-      >
-        <div className="space-y-3">
-          <div>
-            <label className="mb-1.5 block text-[12px] font-medium text-[var(--neutral-sub-600)]">
-              Title
-            </label>
-            <Input
-              value={draftTitle}
-              onChange={(e) => setDraftTitle(e.target.value)}
-              placeholder="Four words or fewer"
+          <section aria-label="Summary" className="mt-6 grid grid-cols-3 gap-3 sm:gap-4">
+            <StatCard
+              label="Total memories"
+              shortLabel="Total"
+              icon={<BookOpen size={15} />}
+              loading={loading}
+              value={error && memories.length === 0 ? '—' : memories.length.toLocaleString()}
+              description={error && memories.length === 0 ? 'Could not load memories' : 'In your library'}
             />
-            <p
-              className={cn(
-                'mt-1 text-[11.5px]',
-                titleTooLong ? 'text-[var(--error)]' : 'text-[var(--neutral-soft-400)]',
+            <StatCard
+              label="Pinned"
+              shortLabel="Pinned"
+              icon={<Pin size={15} />}
+              loading={loading}
+              value={error && memories.length === 0 ? '—' : pinnedCount.toLocaleString()}
+              description="Kept at the top of the library"
+            />
+            <StatCard
+              label="Shared"
+              shortLabel="Shared"
+              icon={<Link2 size={15} />}
+              loading={loading || sharesLoading}
+              value={error && memories.length === 0 ? '—' : sharedCount.toLocaleString()}
+              description={
+                sharedFailures > 0
+                  ? `Could not check ${sharedFailures.toLocaleString()} ${sharedFailures === 1 ? 'memory' : 'memories'}`
+                  : 'With an active share link'
+              }
+            />
+          </section>
+
+          <div className="mt-6 flex flex-col gap-2.5 md:flex-row md:items-center">
+            <div data-input-shell className="flex h-9 min-w-0 items-center rounded-[9px] bg-[var(--mm-panel)] ring-1 ring-inset ring-[var(--mm-border)] transition-shadow duration-150 focus-within:ring-[rgba(0,184,121,0.55)] md:w-[340px]">
+              <Search size={14} className="ml-3 shrink-0 text-[var(--mm-muted)]" />
+              <label htmlFor="memory-search" className="sr-only">
+                Search memories
+              </label>
+              <input
+                id="memory-search"
+                ref={searchRef}
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    setQuery('');
+                    event.currentTarget.blur();
+                  }
+                }}
+                placeholder="Search titles and content"
+                style={{ background: 'transparent', border: 0 }}
+                className="h-full min-w-0 flex-1 px-2 text-[13px] text-[var(--mm-text)] placeholder:text-[var(--mm-muted)] focus:outline-none [&::-webkit-search-cancel-button]:hidden"
+              />
+              {query ? (
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  onClick={() => setQuery('')}
+                  className="mr-1.5 flex size-6 items-center justify-center rounded-[6px] text-[var(--mm-muted)] hover:text-[var(--mm-text)]"
+                >
+                  <X size={13} />
+                </button>
+              ) : (
+                <kbd className="mr-2.5 rounded-[4px] bg-[var(--mm-elevated)] px-1.5 text-[10.5px] leading-[18px] text-[var(--mm-muted)]">
+                  /
+                </kbd>
               )}
-            >
-              {titleWords}/4 words
-            </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 md:ml-auto">
+              <div
+                role="radiogroup"
+                aria-label="Filter memories"
+                className="flex h-9 items-center rounded-[9px] bg-[var(--mm-panel)] p-0.5 ring-1 ring-inset ring-[var(--mm-border)]"
+              >
+                {MEMORY_FILTERS.map((option) => {
+                  const count =
+                    option.id === 'all' ? memories.length : option.id === 'pinned' ? pinnedCount : sharedCount;
+                  const active = filter === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => setFilter(option.id)}
+                      className={cn(
+                        'flex h-full items-center gap-1.5 rounded-[7px] px-2.5 text-[12.5px] font-medium transition-colors duration-150',
+                        active
+                          ? 'bg-[var(--mm-elevated)] text-[var(--mm-text)]'
+                          : 'text-[var(--mm-muted)] hover:text-[var(--mm-text)]',
+                      )}
+                    >
+                      {option.label}
+                      {!loading && (
+                        <span className={cn('text-[11px] tabular-nums', active ? 'text-[var(--mm-mint)]' : 'text-[var(--mm-muted)]')}>
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="relative">
+                <label htmlFor="memory-sort" className="sr-only">
+                  Sort memories
+                </label>
+                <select
+                  id="memory-sort"
+                  value={sort}
+                  onChange={(event) => setSort(event.target.value as MemorySort)}
+                  style={{ background: 'var(--mm-panel)' }}
+                  className="h-9 appearance-none rounded-[9px] border-0 pl-3 pr-8 text-[12.5px] text-[var(--mm-text-2)] ring-1 ring-inset ring-[var(--mm-border)] transition-colors duration-150 hover:text-[var(--mm-text)] focus:outline-none focus-visible:ring-[rgba(0,184,121,0.55)]"
+                >
+                  {MEMORY_SORTS.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={14}
+                  className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--mm-muted)]"
+                />
+              </div>
+
+              <div
+                role="radiogroup"
+                aria-label="List density"
+                className="hidden h-9 items-center rounded-[9px] bg-[var(--mm-panel)] p-0.5 ring-1 ring-inset ring-[var(--mm-border)] sm:flex"
+              >
+                {(
+                  [
+                    { id: 'comfortable', label: 'Comfortable list', icon: LayoutList },
+                    { id: 'compact', label: 'Compact list', icon: AlignJustify },
+                  ] as const
+                ).map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="radio"
+                    aria-checked={density === id}
+                    aria-label={label}
+                    title={label}
+                    onClick={() => setDensity(id)}
+                    className={cn(
+                      'flex h-full w-8 items-center justify-center rounded-[7px] transition-colors duration-150',
+                      density === id
+                        ? 'bg-[var(--mm-elevated)] text-[var(--mm-text)]'
+                        : 'text-[var(--mm-muted)] hover:text-[var(--mm-text)]',
+                    )}
+                  >
+                    <Icon size={14} />
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-          <div>
-            <label className="mb-1.5 block text-[12px] font-medium text-[var(--neutral-sub-600)]">
-              Body
-            </label>
-            <textarea
-              value={draftBody}
-              onChange={(e) => setDraftBody(e.target.value)}
-              placeholder={'Markdown is supported.\n\nNever push to `main`.'}
-              rows={8}
-              className="w-full resize-y rounded-[8px] border border-[var(--stroke-sub-300)] bg-[var(--white-0)] px-3 py-2.5 text-[13px] leading-[1.6] text-[var(--neutral-strong-950)] placeholder:text-[var(--neutral-soft-400)] outline-none focus:border-[var(--primary-base)] focus:ring-[3px] focus:ring-[var(--primary-alpha-16)]"
-            />
+
+          {error && (
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-[10px] bg-[rgba(240,120,120,0.08)] px-4 py-2.5">
+              <p className="text-[13px] text-[var(--mm-red)]">{error}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoading(true);
+                  void fetchData();
+                }}
+                className="shrink-0 text-[12.5px] font-medium text-[var(--mm-text-2)] underline-offset-2 hover:text-[var(--mm-text)] hover:underline"
+              >
+                Try again
+              </button>
+            </div>
+          )}
+
+          <div
+            ref={panesRef}
+            className="mt-4 grid scroll-mt-[120px] grid-cols-1 gap-5 lg:sticky lg:top-[72px] lg:h-[calc(100dvh-88px)] lg:min-h-[520px] lg:grid-cols-[minmax(320px,38fr)_62fr]">
+            <div className={cn('min-h-0 lg:block', selected ? 'hidden' : 'block')}>
+              <MemoryExplorer
+                pinned={visiblePinned}
+                rest={visibleRest}
+                total={memories.length}
+                selectedId={selectedId}
+                shareCounts={shareCounts}
+                density={density}
+                busyIds={busyIds}
+                loading={loading}
+                query={query}
+                filtered={filtersActive}
+                onSelect={(memory) => setSelectedId(memory.id)}
+                onPin={(memory) => void handlePin(memory)}
+                onEdit={openEdit}
+                onShare={setShareMemory}
+                onCreate={openCreate}
+                onClearFilters={clearFilters}
+              />
+            </div>
+            <div className={cn('min-h-0', selected ? 'block' : 'hidden lg:block')}>
+              <MemoryDetail
+                memory={selected}
+                shareCount={selected ? shareCounts[selected.id] : undefined}
+                shareCountFailed={selected ? shareFailures.has(selected.id) : false}
+                pinning={pinningId === selected?.id}
+                copied={copiedId === selected?.id}
+                hasMemories={memories.length > 0}
+                onBack={() => setSelectedId(null)}
+                onPin={() => selected && void handlePin(selected)}
+                onEdit={() => selected && openEdit(selected)}
+                onCopy={() => selected && void handleCopy(selected)}
+                onShare={() => selected && setShareMemory(selected)}
+                onDelete={() => selected && setPendingDelete(selected)}
+              />
+            </div>
           </div>
         </div>
-      </Dialog>
 
-      <Dialog
-        open={redeemOpen}
-        onOpenChange={setRedeemOpen}
-        title="Redeem a share code"
-        description="Paste the code from a memory share link. You will get your own copy."
-        footer={
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setRedeemOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="primary" onClick={handleRedeem} disabled={!redeemCode.trim()}>
-              Open share
-            </Button>
-          </div>
-        }
-      >
-        <Input
-          value={redeemCode}
-          onChange={(e) => setRedeemCode(e.target.value)}
-          placeholder="Share code"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleRedeem();
+        <MemoryEditorDialog
+          key={editor.session}
+          open={editor.open}
+          editing={editor.editing !== null}
+          initialTitle={editor.editing?.title ?? ''}
+          initialBody={editor.editing?.memory ?? ''}
+          saving={saving}
+          onSave={(payload) => void handleSave(payload)}
+          onClose={closeEditor}
+        />
+
+        <RedeemShareDialog
+          open={redeemOpen}
+          onClose={() => setRedeemOpen(false)}
+          onImported={(memory) => void handleImported(memory)}
+          onAlreadyImported={(id) => void handleAlreadyImported(id)}
+        />
+
+        <ConfirmDialog
+          open={pendingDelete !== null}
+          onOpenChange={(open) => {
+            if (!open) setPendingDelete(null);
+          }}
+          variant="danger"
+          title="Delete this memory?"
+          description={
+            pendingDelete ? (
+              <>
+                <span className="font-semibold text-[var(--neutral-strong-950)]">
+                  &ldquo;{pendingDelete.title}&rdquo;
+                </span>{' '}
+                will be permanently removed. Copies others imported from your share links are kept.
+              </>
+            ) : null
+          }
+          confirmLabel="Delete memory"
+          loading={!!deletingId}
+          onConfirm={handleDelete}
+        />
+
+        <ShareMemoryDialog
+          memory={shareMemory}
+          open={shareMemory !== null}
+          onOpenChange={(next) => {
+            if (!next) {
+              if (shareMemory) void loadShareCounts([shareMemory]);
+              setShareMemory(null);
+            }
           }}
         />
-      </Dialog>
-
-      <ConfirmDialog
-        open={pendingDelete !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingDelete(null);
-        }}
-        variant="danger"
-        title="Delete this memory?"
-        description={
-          pendingDelete ? (
-            <>
-              The entry{' '}
-              <span className="font-semibold text-[var(--neutral-strong-950)]">
-                &ldquo;{pendingDelete.title}&rdquo;
-              </span>{' '}
-              will be permanently removed.
-            </>
-          ) : null
-        }
-        confirmLabel="Delete memory"
-        loading={!!deletingId}
-        onConfirm={handleDelete}
-      />
-
-      <ShareMemoryDialog
-        memory={shareMemory}
-        open={shareMemory !== null}
-        onOpenChange={(next) => {
-          if (!next) {
-            if (shareMemory) void loadShareCounts([shareMemory]);
-            setShareMemory(null);
-          }
-        }}
-      />
+      </div>
     </>
   );
 }
 
-function MemoryRow({
-  memory,
-  shareCount,
-  pinned,
-  busy,
-  menuOpen,
-  onOpen,
-  onToggleMenu,
-  onCloseMenu,
-  onPin,
-  onShare,
-  onEdit,
-  onDelete,
-}: {
-  memory: Memory;
-  shareCount?: number;
-  pinned: boolean;
-  busy: boolean;
-  menuOpen: boolean;
-  onOpen: () => void;
-  onToggleMenu: () => void;
-  onCloseMenu: () => void;
-  onPin: () => void;
-  onShare: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
-  const menuRef = useRef<HTMLDivElement>(null);
-  const shares = shareCountLabel(shareCount);
-  const preview = plainTextFromMarkdown(memory.memory);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onDoc = (e: MouseEvent) => {
-      if (!menuRef.current?.contains(e.target as Node)) onCloseMenu();
-    };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [menuOpen, onCloseMenu]);
-
-  return (
-    <article
-      className={cn(
-        'group relative flex cursor-pointer gap-3 rounded-xl',
-        pinned
-          ? 'border border-[var(--stroke-soft-200)] bg-[var(--bg-surface)] px-3 py-3'
-          : 'px-1 py-2 hover:bg-[var(--neutral-weak-50)]',
-        busy && 'pointer-events-none opacity-50',
-      )}
-      onClick={onOpen}
-    >
-      {pinned ? (
-        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--primary-alpha-10)]">
-          <Zap className="h-3.5 w-3.5 text-[var(--primary-base)]" strokeWidth={2.25} fill="currentColor" />
-        </span>
-      ) : null}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-3">
-          <h3 className="truncate text-[14.5px] font-semibold tracking-[-0.015em] text-[var(--neutral-strong-950)]">
-            {memory.title}
-          </h3>
-          <div className="flex shrink-0 items-center gap-2">
-            {shares && (
-              <span className="text-[12px] font-medium text-[var(--neutral-soft-400)]">{shares}</span>
-            )}
-            <div className="relative" ref={menuRef}>
-              <button
-                type="button"
-                aria-label={`More actions for ${memory.title}`}
-                aria-expanded={menuOpen}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleMenu();
-                }}
-                className="rounded-md p-1 text-[var(--neutral-soft-400)] hover:bg-[var(--neutral-weak-50)] hover:text-[var(--neutral-strong-950)]"
-              >
-                <MoreHorizontal className="h-4 w-4" strokeWidth={2} />
-              </button>
-              {menuOpen && (
-                <div
-                  className="absolute right-0 z-20 mt-1 w-[180px] overflow-hidden rounded-lg border border-[var(--stroke-soft-200)] bg-[var(--bg-surface)] py-1 shadow-[0_12px_32px_rgba(0,0,0,0.16)]"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <MenuItem
-                    icon={pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
-                    label={pinned ? 'Unpin' : 'Pin'}
-                    onClick={onPin}
-                  />
-                  <MenuItem icon={<Share2 className="h-3.5 w-3.5" />} label="Share" onClick={onShare} />
-                  <MenuItem icon={<Pencil className="h-3.5 w-3.5" />} label="Edit" onClick={onEdit} />
-                  <MenuItem
-                    icon={<Trash2 className="h-3.5 w-3.5" />}
-                    label="Delete"
-                    onClick={onDelete}
-                    danger
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-        {preview ? (
-          <p className="mt-0.5 truncate text-[13px] leading-[1.45] text-[var(--neutral-sub-600)]">
-            {preview}
-          </p>
-        ) : null}
-      </div>
-    </article>
-  );
-}
-
-function MenuItem({
-  icon,
+function StatCard({
   label,
-  onClick,
-  danger,
+  shortLabel,
+  icon,
+  value,
+  description,
+  loading,
 }: {
-  icon: ReactNode;
   label: string;
-  onClick: () => void;
-  danger?: boolean;
+  shortLabel: string;
+  icon: ReactNode;
+  value: string;
+  description: string;
+  loading: boolean;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[12.5px]',
-        danger
-          ? 'text-[var(--error)] hover:bg-[var(--error-lighter)]'
-          : 'text-[var(--neutral-sub-600)] hover:bg-[var(--neutral-weak-50)] hover:text-[var(--neutral-strong-950)]',
+    <div className="flex h-[84px] flex-col justify-between rounded-[12px] border border-[var(--mm-border)] bg-[var(--mm-panel)] px-3.5 py-3.5 sm:h-[100px] sm:px-5 sm:py-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="truncate text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--mm-muted)]">
+          <span className="sm:hidden">{shortLabel}</span>
+          <span className="hidden sm:inline">{label}</span>
+        </p>
+        <span className="hidden text-[var(--mm-muted)] sm:block">{icon}</span>
+      </div>
+      {loading ? (
+        <div aria-hidden>
+          <div className="h-6 w-12 animate-pulse rounded-[5px] bg-[var(--mm-elevated)] motion-reduce:animate-none" />
+          <div className="mt-2 h-3 w-32 animate-pulse rounded-[4px] bg-[var(--mm-elevated)] motion-reduce:animate-none" />
+        </div>
+      ) : (
+        <div className="flex items-baseline gap-2.5">
+          <p className="text-[24px] font-semibold leading-none tabular-nums tracking-[-0.03em] text-[var(--mm-text)]">
+            {value}
+          </p>
+          <p className="hidden truncate text-[12px] text-[var(--mm-text-2)] sm:block">{description}</p>
+        </div>
       )}
-    >
-      {icon}
-      {label}
-    </button>
+    </div>
   );
 }
 
-function MemorySkeleton() {
+function RulesTooltip() {
+  const [open, setOpen] = useState(false);
   return (
-    <div className="space-y-3">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="rounded-xl border border-[var(--stroke-soft-200)] px-4 py-3">
-          <Skeleton className="h-4 w-40" />
-          <Skeleton className="mt-2 h-3 w-full" />
-          <Skeleton className="mt-1.5 h-3 w-2/3" />
-        </div>
-      ))}
-    </div>
+    <span className="relative inline-flex">
+      <button
+        type="button"
+        aria-label="How memory works"
+        aria-expanded={open}
+        aria-describedby={open ? 'memory-rules' : undefined}
+        onClick={() => setOpen((value) => !value)}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') setOpen(false);
+        }}
+        className="flex size-6 items-center justify-center rounded-full text-[var(--mm-muted)] transition-colors duration-150 hover:text-[var(--mm-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(0,184,121,0.45)]"
+      >
+        <Info size={15} />
+      </button>
+      {open && (
+        <span
+          id="memory-rules"
+          role="tooltip"
+          className="absolute left-0 top-full z-30 mt-2 w-[300px] rounded-[10px] border border-[var(--mm-border-strong)] bg-[var(--mm-elevated)] px-3.5 py-3 text-[12.5px] leading-[1.55] text-[var(--mm-text-2)] shadow-[0_12px_32px_rgba(0,0,0,0.4)]"
+        >
+          <span className="mb-1 block text-[12px] font-semibold text-[var(--mm-text)]">How memory works</span>
+          Each memory is a title of four words or fewer and a Markdown body. You write them — agents do not
+          create them, and nothing expires. Share links can be revoked at any time.
+        </span>
+      )}
+    </span>
   );
 }

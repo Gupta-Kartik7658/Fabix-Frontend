@@ -32,7 +32,7 @@ import {
   MailCheck,
 } from 'lucide-react';
 import { api, getApiErrorCode, getApiErrorMessage } from '@/lib/api';
-import { AegisLogo } from '@/components/ui/AegisLogo';
+import { FabixLogo } from '@/components/ui/FabixLogo';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { fadeUp, staggerContainer } from '@/lib/motion';
@@ -145,7 +145,7 @@ function ResetPasswordPage() {
 
       <section className="relative flex min-h-screen flex-col px-4 py-8 sm:px-8 lg:px-12">
         <div className="flex items-center justify-between lg:hidden">
-          <AegisLogo
+          <FabixLogo
             style={{ height: 22, width: 'auto', color: 'var(--neutral-strong-950)' }}
           />
         </div>
@@ -235,7 +235,7 @@ function ShowcasePanel({ reduce }: { reduce: boolean }) {
         animate="show"
       >
         <motion.div variants={fadeUp}>
-          <AegisLogo
+          <FabixLogo
             style={{ height: 24, width: 'auto', color: 'var(--neutral-strong-950)' }}
           />
         </motion.div>

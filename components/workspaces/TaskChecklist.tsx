@@ -89,11 +89,11 @@ const STATUS_META: Record<
   },
   review: {
     label: 'In review',
-    pill: 'bg-[rgba(246,181,30,0.20)] text-[var(--warning-dark)]',
+    pill: 'bg-[var(--warning-lighter)] text-[var(--warning-dark)]',
   },
   done: {
     label: 'Done',
-    pill: 'bg-[rgba(31,193,107,0.16)] text-[var(--success-dark)]',
+    pill: 'bg-[var(--success-lighter)] text-[var(--success-dark)]',
   },
 };
 
@@ -207,6 +207,7 @@ export function TaskChecklist({
   onUpdate,
   onDelete,
   focusSignal = 0,
+  focusDraft = '',
 }: {
   pointers: WorkspaceTaskPointer[];
   agents: WorkspaceAgent[];
@@ -219,6 +220,8 @@ export function TaskChecklist({
   onDelete: (id: string) => Promise<void>;
   /** Bumped by the parent to focus the add field, e.g. from the `t` shortcut. */
   focusSignal?: number;
+  /** Title to prefill when `focusSignal` opens the add field. */
+  focusDraft?: string;
 }) {
   const reduce = useReducedMotion();
   const [draft, setDraft] = useState('');
@@ -314,8 +317,11 @@ export function TaskChecklist({
     if (focusSignal > 0) {
       setComposeFor(null);
       setComposing(true);
+      if (focusDraft) setDraft(focusDraft);
       requestAnimationFrame(() => addRef.current?.focus());
     }
+    // focusDraft travels with the signal; reacting to it alone would reopen the field.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusSignal]);
 
   useEffect(() => {
@@ -468,7 +474,7 @@ export function TaskChecklist({
               composeHandle ? `Title this pointer for @${composeHandle}` : 'Title this pointer'
             }
             disabled={busy}
-            className="w-full rounded-md border border-[var(--stroke-soft-200)] bg-[var(--bg-surface)] px-2.5 py-1.5 text-[13px] text-[var(--neutral-strong-950)] placeholder:text-[var(--neutral-soft-400)] focus:border-[var(--primary-base)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-alpha-16)]"
+            className="w-full rounded-md border border-[var(--stroke-soft-200)] bg-[var(--bg-surface)] px-2.5 py-1.5 text-[13px] text-[var(--neutral-strong-950)] placeholder:text-[var(--neutral-soft-400)] focus:border-[var(--neutral-soft-400)] focus:outline-none focus:ring-0"
           />
         </div>
       )}
@@ -893,11 +899,11 @@ function TaskCard({
         }
       }}
       className={cn(
-        'relative shrink-0 cursor-pointer scroll-mt-3 overflow-visible rounded-[10px] border bg-[var(--bg-surface)] py-2.5 pl-3 pr-2 shadow-[0_1px_2px_rgba(23,23,23,0.04)]',
+        'relative shrink-0 cursor-pointer scroll-mt-3 overflow-visible rounded-[10px] border bg-[var(--bg-surface)] py-2.5 pl-3 pr-2 outline-none transition-colors',
         done && 'opacity-[0.62]',
-        'hover:border-[var(--stroke-sub-300)]',
+        'hover:border-[var(--stroke-sub-300)] focus-visible:border-[var(--neutral-soft-400)]',
         highlight
-          ? 'border-[var(--primary-base)] ring-2 ring-[var(--primary-alpha-16)]'
+          ? 'border-[var(--neutral-sub-600)] ring-1 ring-[var(--neutral-soft-400)]/40'
           : 'border-[var(--stroke-soft-200)]',
       )}
     >

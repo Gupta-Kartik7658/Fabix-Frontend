@@ -1737,6 +1737,19 @@ const PREVIEW_PRIVATE_CONNECTOR_STATUS: Record<string, PrivateConnectorCredentia
     last_tested_at: new Date(NOW - 6 * 60 * 1000).toISOString(),
     last_error: null,
   },
+  mongodb: {
+    connector_key: 'mongodb',
+    configured: true,
+    is_enabled: true,
+    configured_keys: ['connection_string'],
+    credential_metadata: null,
+    created_at: new Date(NOW - 9 * ONE_DAY).toISOString(),
+    updated_at: new Date(NOW - 2 * ONE_DAY).toISOString(),
+    revoked_at: null,
+    last_tested_at: new Date(NOW - 38 * 60 * 1000).toISOString(),
+    last_error:
+      'MongoServerSelectionError: getaddrinfo ENOTFOUND cluster0.x7k2p.mongodb.net while connecting to mongodb+srv://aegis_app:Pr0dS3cret!@cluster0.x7k2p.mongodb.net/orders?retryWrites=true&w=majority',
+  },
   linear: {
     connector_key: 'linear',
     configured: true,

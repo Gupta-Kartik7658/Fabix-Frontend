@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Hide the entry splash before paint when this tab already played it. */
+html[data-platform-intro="seen"] [data-platform-loader] {
+  display: none;
+}
+
 /* ─────────────────────────────────────────────────────────────────
    AlignUI Design System — Linear blue primary, Light mode
    Accent from Linear: solid #4F7BFF, text #93B2FF, on-accent #FFF.
@@ -98,7 +103,7 @@
      (icon-only rail). Layout.tsx + Sidebar.tsx both consume this var
      so they stay in lockstep. Transition timing tuned to feel
      intentional, not floaty (200ms emphasized-decel). */
-  --sidebar-w: 220px;
+  --sidebar-w: 248px;
   --sidebar-transition: 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
 
   /* Table header surface — slightly lifted from card body. Dark mode
@@ -155,47 +160,47 @@
    ───────────────────────────────────────────────────────────────── */
 [data-theme="dark"] {
   /* Neutral scale — warm near-black with tight elevation steps */
-  --white-0:           #0f0f11;  /* card surface — barely above app bg */
-  --neutral-weak-50:   #18181b;  /* hover / elevated panel */
-  --neutral-soft-200:  #1f1f23;  /* subtle divider */
-  --neutral-sub-300:   #2a2a2f;  /* stronger border (still very subtle) */
-  --neutral-soft-400:  #71717a;  /* dimmed text / icons (Linear-exact gray) */
-  --neutral-sub-600:   #a1a1aa;  /* secondary text */
-  --neutral-strong-950:#fafafa;  /* primary text — warm white */
+  --white-0:           #111513;  /* card surface — barely above app bg */
+  --neutral-weak-50:   #171C19;  /* hover / elevated panel */
+  --neutral-soft-200:  #1C221E;  /* subtle divider */
+  --neutral-sub-300:   #2C332E;  /* stronger border (still very subtle) */
+  --neutral-soft-400:  #737D76;  /* dimmed text / icons (Linear-exact gray) */
+  --neutral-sub-600:   #A1AAA4;  /* secondary text */
+  --neutral-strong-950:#F0F3F1;  /* primary text — warm white */
 
   /* Strokes — hairline visibility, signature of the tier */
-  --stroke-soft-200:   #1d1d20;
-  --stroke-sub-300:    #2a2a2f;
+  --stroke-soft-200:   #252B27;
+  --stroke-sub-300:    #303833;
 
   /* Brand blue — solid stays Linear accent. `--primary-dark` flips to
      accent/text so hover-on-dark and blue labels lift instead of deepen. */
-  --primary-base:      #4f7bff;
-  --primary-dark:      #93b2ff;
-  --primary-lighter:   rgba(79, 123, 255, 0.14);
-  --primary-alpha-10:  rgba(79, 123, 255, 0.10);
-  --primary-alpha-16:  rgba(79, 123, 255, 0.18);
-  --primary-alpha-24:  rgba(79, 123, 255, 0.32);
+  --primary-base:      #39B982;
+  --primary-dark:      #56C58D;
+  --primary-lighter:   rgba(57, 185, 130, 0.12);
+  --primary-alpha-10:  rgba(57, 185, 130, 0.10);
+  --primary-alpha-16:  rgba(57, 185, 130, 0.16);
+  --primary-alpha-24:  rgba(57, 185, 130, 0.26);
   --text-on-accent:    #ffffff;
 
-  --attention:         #fa7319;
-  --attention-dark:    #ff8a3c;
-  --attention-lighter: rgba(250, 115, 25, 0.14);
+  --attention:         #E5AD59;
+  --attention-dark:    #E5AD59;
+  --attention-lighter: rgba(229, 173, 89, 0.12);
 
   /* Semantic state — `*-dark` tokens flip to BRIGHT AlignUI dark-spec
      variants. Badge text (which uses `text-[var(--*-dark)]`) lands on
      a faint colored wash against near-black; bright text reads cleanly.
      Same flip handles hover-on-dark — lifts instead of deepens. */
-  --success:           #3ee089;
-  --success-lighter:   rgba(62, 224, 137, 0.14);
-  --success-dark:      #3ee089;
+  --success:           #42B883;
+  --success-lighter:   rgba(66, 184, 131, 0.12);
+  --success-dark:      #42B883;
 
-  --error:             #ff6875;
-  --error-lighter:     rgba(255, 104, 117, 0.14);
-  --error-dark:        #ff6875;
+  --error:             #E47777;
+  --error-lighter:     rgba(228, 119, 119, 0.12);
+  --error-dark:        #E47777;
 
-  --warning:           #ffd268;
-  --warning-lighter:   rgba(255, 210, 104, 0.14);
-  --warning-dark:      #ffd268;
+  --warning:           #E5AD59;
+  --warning-lighter:   rgba(229, 173, 89, 0.12);
+  --warning-dark:      #E5AD59;
 
   --feature:           #7b68c9;
   --feature-lighter:   rgba(101, 80, 185, 0.18);
@@ -236,12 +241,12 @@
                 0 1px 0 0 rgba(0, 0, 0, 0.4);
 
   /* Primary button — Linear accent/solid against near-black. */
-  --btn-primary-bg:        #4f7bff;
-  --btn-primary-bg-hover:  #6b91ff;
-  --btn-primary-bg-active: #3d63e8;
-  --btn-primary-border:    #3d63e8;
+  --btn-primary-bg:        #168653;
+  --btn-primary-bg-hover:  #1A9660;
+  --btn-primary-bg-active: #12744A;
+  --btn-primary-border:    #12744A;
   --btn-primary-shadow:    inset 0 1px 0 0 rgba(255, 255, 255, 0.10),
-                           0 1px 2px rgba(0, 0, 0, 0.5);
+                           0 0 0 0 transparent;
 
   /* Shadow — Linear/Vercel signature: NO drop shadow. Border does all
      the elevation work. We keep the variable defined so anywhere that
@@ -249,7 +254,7 @@
   --shadow-regular-xs: 0 0 0 0 transparent;
 
   /* Surfaces */
-  --bg-app:            #08080a;  /* app shell — true near-black */
+  --bg-app:            #090B0A;  /* app shell — true near-black */
   --bg-surface:        var(--white-0);
   --bg-surface-alt:    var(--neutral-weak-50);
   --text-strong:       var(--neutral-strong-950);
@@ -310,6 +315,8 @@
      hover-related flows. */
   --default-transition-duration: 180ms;
   --default-transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --font-display: var(--font-manrope), var(--font-geist-sans), sans-serif;
 
   --color-white-0: var(--white-0);
   --color-weak-50: var(--neutral-weak-50);
@@ -858,7 +865,7 @@ input:-webkit-autofill {
    the "snapped-cut" feel where text gets clipped mid-animation.
    ───────────────────────────────────────────────────────────────── */
 [data-sidebar-collapsed] {
-  --sidebar-w: 56px;
+  --sidebar-w: 68px;
 }
 
 /* Anything tagged `data-sidebar-hide` is removed from layout when the
@@ -965,3 +972,4 @@ input:-webkit-autofill {
   0%   { transform: translateX(-100%); }
   100% { transform: translateX(100%);  }
 }
+

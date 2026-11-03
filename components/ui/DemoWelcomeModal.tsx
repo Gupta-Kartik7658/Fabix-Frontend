@@ -34,7 +34,7 @@ import { useEffect } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
 import { useUser } from '@/lib/hooks';
-import { AegisLogo } from '@/components/ui/AegisLogo';
+import { FabixLogo } from '@/components/ui/FabixLogo';
 import { GenerativeAvatar } from '@/components/ui/GenerativeAvatar';
 import { cn } from '@/lib/utils';
 
@@ -104,7 +104,7 @@ export function DemoWelcomeModal({
                   weight (they're the actual decision). */}
               <div className="px-7 pt-7">
                 <div className="mb-6 flex items-center gap-2.5 text-[var(--neutral-strong-950)]">
-                  <AegisLogo style={{ height: 20, width: 'auto' }} />
+                  <FabixLogo style={{ height: 20, width: 'auto' }} />
                 </div>
                 <h2
                   id="demo-welcome-title"

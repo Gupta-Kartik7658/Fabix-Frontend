@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -25,7 +25,7 @@ import {
   subscribeRecentWorkspaces,
   type RecentWorkspace,
 } from '@/lib/recentWorkspaces';
-import { AegisLogo } from '@/components/ui/AegisLogo';
+import { FabixLogo } from '@/components/ui/FabixLogo';
 import { WorkspaceSwitcher } from '@/components/ui/WorkspaceSwitcher';
 
 /**
@@ -77,12 +77,41 @@ function useSidebarCollapsed() {
   return { collapsed, toggle };
 }
 
+/** The rail is always dark, whatever the page theme. Global tokens are
+ *  re-pointed here too so the profile menu (WorkspaceSwitcher) matches. */
+const SIDEBAR_THEME = {
+  '--sb-bg': '#101311',
+  '--sb-border': '#252B27',
+  '--sb-hover': '#141915',
+  '--sb-active': '#171D19',
+  '--sb-accent': '#56C58D',
+  '--sb-text': '#C6CEC8',
+  '--sb-text-strong': '#F0F3F1',
+  '--sb-text-muted': '#89968E',
+  '--sb-text-faint': '#5F6A63',
+  '--white-0': '#111513',
+  '--bg-surface': '#111513',
+  '--neutral-weak-50': '#171D19',
+  '--neutral-soft-200': '#1C221E',
+  '--neutral-soft-400': '#89968E',
+  '--neutral-sub-600': '#A1AAA4',
+  '--neutral-strong-950': '#F0F3F1',
+  '--stroke-soft-200': '#252B27',
+  '--stroke-sub-300': '#303833',
+  '--primary-base': '#39B982',
+  '--error': '#E47777',
+  '--error-lighter': 'rgba(228, 119, 119, 0.12)',
+  background: 'var(--sb-bg)',
+  borderColor: 'var(--sb-border)',
+  colorScheme: 'dark',
+} as CSSProperties;
+
 type NavItem = {
   name: string;
   href: string;
   icon: LucideIcon;
   tour?: string;
-  badge?: { value: number | string; tone: 'urgent' | 'neutral' };
+  badge?: number;
 };
 
 type NavGroup = {
@@ -93,48 +122,51 @@ type NavGroup = {
 function buildNavGroups(inboxCount: number): NavGroup[] {
   return [
     {
-      label: 'Work',
+      label: 'Workspace',
       items: [
         {
-          name: 'Inbox',
+          name: 'Activity Center',
           href: '/dashboard/inbox',
           icon: Inbox,
           tour: 'nav-inbox',
-          badge:
-            inboxCount > 0 ? { value: inboxCount, tone: 'urgent' } : undefined,
+          badge: inboxCount > 0 ? inboxCount : undefined,
         },
         { name: 'Workspaces', href: '/dashboard/workspaces', icon: MessagesSquare, tour: 'nav-workspaces' },
       ],
     },
     {
-      label: 'Understand',
+      label: 'Observability',
       items: [
         { name: 'Runs', href: '/dashboard/runs', icon: Activity },
         { name: 'Usage', href: '/dashboard/token-spenditure', icon: Coins },
       ],
     },
     {
-      label: 'Library',
+      label: 'Knowledge',
       items: [
         { name: 'Memory', href: '/dashboard/memory', icon: BrainCircuit, tour: 'nav-memory' },
         { name: 'Prompts', href: '/dashboard/prompts', icon: ScrollText, tour: 'nav-prompts' },
       ],
     },
     {
-      label: 'Set up',
-      items: [
-        { name: 'Connectors', href: '/dashboard/connectors', icon: Boxes },
-        { name: 'Settings', href: '/dashboard/settings', icon: Settings },
-      ],
+      label: 'Integrations',
+      items: [{ name: 'Connectors', href: '/dashboard/connectors', icon: Boxes }],
+    },
+    {
+      label: 'Account',
+      items: [{ name: 'Settings', href: '/dashboard/settings', icon: Settings }],
     },
   ];
 }
+
+type Tip = { label: string; top: number };
 
 export default function Sidebar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [inboxCount, setInboxCount] = useState(0);
   const [recents, setRecents] = useState<RecentWorkspace[]>([]);
+  const [tip, setTip] = useState<Tip | null>(null);
   const { collapsed, toggle } = useSidebarCollapsed();
 
   useEffect(() => {
@@ -194,121 +226,175 @@ export default function Sidebar() {
     return pathname === href || pathname.startsWith(`${href}/`);
   };
 
-  // Nav-row link. `data-sidebar-center` is consumed by globals.css
-  // to center the icon when the rail collapses. The label span is
-  // marked `data-sidebar-hide` so it disappears with the rail. The
-  // inline badge hides the same way; collapsed rail overlays a compact
-  // numeric count on the icon so urgent state stays readable.
+  const tipHandlers = (label: string, desktop: boolean) =>
+    desktop && collapsed
+      ? {
+          onMouseEnter: (e: React.MouseEvent<HTMLElement>) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            setTip({ label, top: rect.top + rect.height / 2 });
+          },
+          onMouseLeave: () => setTip(null),
+          onFocus: (e: React.FocusEvent<HTMLElement>) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            setTip({ label, top: rect.top + rect.height / 2 });
+          },
+          onBlur: () => setTip(null),
+        }
+      : {};
+
+  // The icon column is fixed (13px inset, 18px glyph) so icons sit at the
+  // same x in both rail widths — collapsing only removes the label.
   const renderNavLink = (item: NavItem, desktop: boolean) => {
     const active = isActive(item.href);
     const Icon = item.icon;
-    const badgeValue =
-      typeof item.badge?.value === 'number' && item.badge.value > 99
-        ? '99+'
-        : item.badge?.value;
-    const badgeToneClass =
-      item.badge?.tone === 'urgent'
-        ? 'bg-[var(--error)] text-white'
-        : 'bg-[var(--neutral-soft-200)] text-[var(--neutral-sub-600)]';
+    const badge = item.badge ? (item.badge > 99 ? '99+' : String(item.badge)) : null;
+    const tipLabel = badge ? `${item.name} · ${badge} unread` : item.name;
     return (
       <Link
         key={item.href}
         href={item.href}
-        onClick={() => setMobileOpen(false)}
-        data-sidebar-center
+        onClick={() => { setMobileOpen(false); setTip(null); }}
+        aria-label={desktop && collapsed ? tipLabel : undefined}
+        aria-current={active ? 'page' : undefined}
         data-tour={desktop ? item.tour : undefined}
+        {...tipHandlers(tipLabel, desktop)}
         className={[
-          'group relative flex h-8 items-center gap-2 rounded-[7px] px-2 text-[13px] font-medium tracking-[-0.01em]',
-          'transition-colors duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)]',
+          'group relative flex h-[38px] items-center gap-3 rounded-[8px] pl-[13px] pr-2.5 text-[13.5px] tracking-[-0.01em] outline-none',
+          'transition-colors duration-150 focus-visible:ring-1 focus-visible:ring-[var(--sb-accent)]',
           active
-            ? 'bg-[var(--neutral-weak-50)] text-[var(--neutral-strong-950)]'
-            : 'text-[var(--neutral-sub-600)] hover:bg-[var(--neutral-weak-50)] hover:text-[var(--neutral-strong-950)]',
+            ? 'bg-[var(--sb-active)] font-medium text-[var(--sb-text-strong)]'
+            : 'text-[var(--sb-text)] hover:bg-[var(--sb-hover)] hover:text-[var(--sb-text-strong)]',
         ].join(' ')}
       >
         <Icon
-          className="h-3.5 w-3.5 shrink-0"
-          strokeWidth={active ? 2.25 : 2}
+          className={[
+            'size-[18px] shrink-0 transition-colors',
+            active
+              ? 'text-[var(--sb-accent)]'
+              : 'text-[var(--sb-text-muted)] group-hover:text-[var(--sb-text)]',
+          ].join(' ')}
+          strokeWidth={1.75}
         />
-        <span className="flex-1 truncate" data-sidebar-hide>{item.name}</span>
-        {item.badge && (
+        <span className="flex-1 truncate" data-sidebar-hide={desktop ? '' : undefined}>
+          {item.name}
+        </span>
+        {badge && (
           <span
-            data-sidebar-hide
-            className={[
-              'inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-[5px] px-[5px] text-[10.5px] font-bold tabular-nums',
-              badgeToneClass,
-            ].join(' ')}
+            data-sidebar-hide={desktop ? '' : undefined}
+            className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#1E2A23] px-1.5 text-[10.5px] font-semibold tabular-nums text-[var(--sb-accent)]"
           >
-            {badgeValue}
+            {badge}
           </span>
         )}
-        {item.badge && collapsed && desktop && (
+        {badge && desktop && collapsed && (
           <span
             aria-hidden
-            className={[
-              'absolute -right-0.5 -top-0.5 z-10 inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-full px-[4px] text-[9px] font-bold leading-none tabular-nums',
-              badgeToneClass,
-            ].join(' ')}
-          >
-            {badgeValue}
-          </span>
+            className="absolute left-[27px] top-[7px] size-[7px] rounded-full bg-[var(--sb-accent)] ring-2 ring-[var(--sb-bg)]"
+          />
         )}
       </Link>
     );
   };
 
+  const renderRecents = (desktop: boolean) => (
+    <div
+      data-sidebar-hide={desktop ? '' : undefined}
+      className="relative mb-1 ml-[22px] mt-0.5 space-y-px border-l border-[var(--sb-border)] pl-[13px]"
+    >
+      {recents.map((row) => {
+        const href = `/workspaces/${row.id}`;
+        const active = pathname === href || pathname.startsWith(`${href}/`);
+        return (
+          <Link
+            key={row.id}
+            href={href}
+            title={row.title}
+            onClick={() => { setMobileOpen(false); setTip(null); }}
+            aria-current={active ? 'page' : undefined}
+            className={[
+              'relative flex h-[30px] items-center truncate rounded-[7px] px-2 text-[12.5px] tracking-[-0.01em] outline-none',
+              'transition-colors duration-150 focus-visible:ring-1 focus-visible:ring-[var(--sb-accent)]',
+              active
+                ? 'bg-[var(--sb-active)] font-medium text-[var(--sb-text-strong)]'
+                : 'text-[var(--sb-text-muted)] hover:bg-[var(--sb-hover)] hover:text-[var(--sb-text)]',
+            ].join(' ')}
+          >
+            {active && (
+              <span
+                aria-hidden
+                className="absolute -left-[14px] top-1/2 h-4 w-px -translate-y-1/2 bg-[var(--sb-accent)]"
+              />
+            )}
+            <span className="truncate">{row.title}</span>
+          </Link>
+        );
+      })}
+    </div>
+  );
+
   const navGroups = buildNavGroups(inboxCount);
 
-  // The `desktop` flag tells NavContent which surface it's rendering
-  // into. The mobile drawer always shows the expanded layout (no
-  // need to collapse on a phone — the drawer is already off-canvas).
-  // Desktop applies all the collapse-aware data attributes.
-  const NavContent = ({ desktop = false }: { desktop?: boolean }) => (
+  // Mobile drawer always renders the expanded layout; only the desktop
+  // rail carries the collapse-aware attributes.
+  const renderNav = (desktop: boolean) => (
     <>
       <div
         data-sidebar-center={desktop ? '' : undefined}
-        className="flex h-[56px] items-center justify-between border-b border-[var(--stroke-soft-200)] px-4"
+        className="flex h-[56px] shrink-0 items-center justify-between border-b border-[var(--sb-border)] pl-[22px] pr-3"
       >
         <Link
           href="/dashboard/workspaces"
-          className="inline-flex items-center text-[var(--neutral-strong-950)] transition-opacity hover:opacity-80"
-          aria-label="Aegis — Home"
+          className="inline-flex items-center text-[var(--sb-text-strong)] transition-opacity hover:opacity-80"
+          aria-label="Fabix — Home"
           data-sidebar-hide={desktop ? '' : undefined}
         >
-          <AegisLogo style={{ height: 22, width: 'auto' }} />
+          <FabixLogo tone="dark" priority style={{ height: 24 }} />
         </Link>
         {desktop ? (
           <button
-            onClick={toggle}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] text-[var(--neutral-sub-600)] transition-colors duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-[var(--neutral-weak-50)] hover:text-[var(--neutral-strong-950)]"
+            type="button"
+            onClick={() => { setTip(null); toggle(); }}
+            {...tipHandlers('Expand sidebar  Ctrl \\', desktop)}
+            className="flex size-8 shrink-0 items-center justify-center rounded-[8px] text-[var(--sb-text-muted)] outline-none transition-colors duration-150 hover:bg-[var(--sb-hover)] hover:text-[var(--sb-text-strong)] focus-visible:ring-1 focus-visible:ring-[var(--sb-accent)]"
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            title={collapsed ? 'Expand sidebar (⌘\\)' : 'Collapse sidebar (⌘\\)'}
+            title={collapsed ? undefined : 'Collapse sidebar (Ctrl \\)'}
           >
             {collapsed ? (
-              <PanelLeftOpen className="h-4 w-4" strokeWidth={2} />
+              <PanelLeftOpen className="size-[17px]" strokeWidth={1.75} />
             ) : (
-              <PanelLeftClose className="h-4 w-4" strokeWidth={2} />
+              <PanelLeftClose className="size-[17px]" strokeWidth={1.75} />
             )}
           </button>
         ) : (
           <button
-            className="text-[var(--neutral-soft-400)] hover:text-[var(--neutral-strong-950)] lg:hidden"
-            onClick={() => setMobileOpen(false)}
+            type="button"
+            className="flex size-8 items-center justify-center rounded-[8px] text-[var(--sb-text-muted)] hover:bg-[var(--sb-hover)] hover:text-[var(--sb-text-strong)]"
+            onClick={() => { setMobileOpen(false); setTip(null); }}
             aria-label="Close menu"
           >
-            <X className="h-4 w-4" />
+            <X className="size-[17px]" strokeWidth={1.75} />
           </button>
         )}
       </div>
 
-      <nav className="flex-1 overflow-x-visible overflow-y-auto px-2 pb-3">
-        {navGroups.map((group) => (
-          <div key={group.label}>
+      <nav
+        aria-label="Main"
+        className="flex-1 overflow-y-auto overflow-x-hidden px-3 pb-4 [scrollbar-width:thin]"
+      >
+        {navGroups.map((group, index) => (
+          <div key={group.label} className={index === 0 ? 'pt-3' : 'pt-4'}>
             <div
               data-sidebar-hide={desktop ? '' : undefined}
-              className="px-2 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--neutral-soft-400)]"
+              className="flex h-6 items-center px-[13px] text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[var(--sb-text-faint)]"
             >
               {group.label}
             </div>
+            {desktop && index > 0 && (
+              <div
+                aria-hidden
+                className="mx-auto mb-2 hidden h-px w-6 bg-[var(--sb-border)] [[data-sidebar-collapsed]_&]:block"
+              />
+            )}
             <div className="space-y-0.5">
               {group.items.map((item) => {
                 const showRecents =
@@ -317,33 +403,7 @@ export default function Sidebar() {
                 return (
                   <div key={item.href}>
                     {renderNavLink(item, desktop)}
-                    <div
-                      data-sidebar-hide={desktop ? '' : undefined}
-                      className="mt-0.5 mb-0.5 space-y-px pl-[30px]"
-                    >
-                      {recents.map((row) => {
-                        const href = `/workspaces/${row.id}`;
-                        const active =
-                          pathname === href || pathname.startsWith(`${href}/`);
-                        return (
-                          <Link
-                            key={row.id}
-                            href={href}
-                            title={row.title}
-                            onClick={() => setMobileOpen(false)}
-                            className={[
-                              'block truncate rounded-[7px] px-2 py-[3px] text-[12px] leading-[1.35] tracking-[-0.01em]',
-                              'transition-colors duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)]',
-                              active
-                                ? 'font-medium text-[var(--neutral-strong-950)]'
-                                : 'text-[var(--neutral-soft-400)] hover:text-[var(--neutral-strong-950)]',
-                            ].join(' ')}
-                          >
-                            {row.title}
-                          </Link>
-                        );
-                      })}
-                    </div>
+                    {renderRecents(desktop)}
                   </div>
                 );
               })}
@@ -352,62 +412,80 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      <div className="border-t border-[var(--stroke-soft-200)] px-2 py-[10px]">
-        <div
-          data-sidebar-center={desktop ? '' : undefined}
-          className="w-full"
-        >
-          <WorkspaceSwitcher />
-        </div>
+      <div className="shrink-0 border-t border-[var(--sb-border)] px-[10px] py-[10px]">
+        <WorkspaceSwitcher />
       </div>
     </>
   );
 
   return (
     <>
-      <div className="fixed left-0 right-0 top-0 z-40 flex h-12 items-center justify-between border-b border-[var(--stroke-soft-200)] bg-[var(--bg-surface)] px-4 lg:hidden">
+      <div
+        className="fixed left-0 right-0 top-0 z-40 flex h-12 items-center justify-between border-b px-4 lg:hidden"
+        style={SIDEBAR_THEME}
+      >
         <Link
           href="/dashboard/workspaces"
-          className="inline-flex items-center text-[var(--neutral-strong-950)]"
-          aria-label="Aegis — Home"
+          className="inline-flex items-center text-[var(--sb-text-strong)]"
+          aria-label="Fabix — Home"
         >
-          <AegisLogo style={{ height: 22, width: 'auto' }} />
+          <FabixLogo tone="dark" style={{ height: 24 }} />
         </Link>
         <button
+          type="button"
           onClick={() => setMobileOpen(true)}
-          className="text-[var(--neutral-soft-400)] hover:text-[var(--neutral-strong-950)]"
+          className="flex size-9 items-center justify-center rounded-[8px] text-[var(--sb-text)] hover:bg-[var(--sb-hover)] hover:text-[var(--sb-text-strong)]"
           aria-label="Open menu"
+          aria-expanded={mobileOpen}
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="size-5" strokeWidth={1.75} />
         </button>
       </div>
 
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm lg:hidden"
-          onClick={() => setMobileOpen(false)}
+          className="fixed inset-0 z-40 bg-black/55 lg:hidden"
+          onClick={() => { setMobileOpen(false); setTip(null); }}
         />
       )}
 
       <aside
         className={[
-          'fixed left-0 top-0 z-50 flex h-dvh w-[220px] flex-col bg-[var(--bg-surface)] transition-transform duration-200 lg:hidden',
-          'border-r border-[var(--stroke-soft-200)]',
+          'fixed left-0 top-0 z-50 flex h-dvh w-[280px] max-w-[86vw] flex-col border-r transition-transform duration-200 lg:hidden',
           mobileOpen ? 'translate-x-0' : '-translate-x-full',
         ].join(' ')}
+        style={SIDEBAR_THEME}
+        aria-hidden={!mobileOpen}
+        inert={!mobileOpen}
       >
-        <NavContent />
+        {renderNav(false)}
       </aside>
 
       <aside
-        className="fixed left-0 top-0 z-30 hidden h-dvh flex-col border-r border-[var(--stroke-soft-200)] bg-[var(--bg-surface)] lg:flex"
+        className="fixed left-0 top-0 z-30 hidden h-dvh flex-col border-r lg:flex"
         style={{
+          ...SIDEBAR_THEME,
           width: 'var(--sidebar-w)',
           transition: 'width var(--sidebar-transition)',
         }}
       >
-        <NavContent desktop />
+        {renderNav(true)}
       </aside>
+
+      {tip && collapsed && (
+        <div
+          role="tooltip"
+          className="pointer-events-none fixed z-[80] hidden -translate-y-1/2 whitespace-nowrap rounded-[7px] border px-2.5 py-1.5 text-[12px] font-medium text-[#F0F3F1] lg:block"
+          style={{
+            left: 'calc(var(--sidebar-w) + 8px)',
+            top: tip.top,
+            background: '#171C19',
+            borderColor: '#252B27',
+          }}
+        >
+          {tip.label}
+        </div>
+      )}
     </>
   );
 }

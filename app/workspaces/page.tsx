@@ -22,7 +22,7 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react';
-import { AegisLogo } from '@/components/ui/AegisLogo';
+import { FabixLogo } from '@/components/ui/FabixLogo';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -747,9 +747,9 @@ export default function WorkspacesPage() {
             <Link
               href="/dashboard"
               className="inline-flex shrink-0 text-[var(--neutral-strong-950)] transition-opacity hover:opacity-80"
-              aria-label="Aegis dashboard"
+              aria-label="Fabix dashboard"
             >
-              <AegisLogo style={{ height: 21, width: 'auto' }} />
+              <FabixLogo style={{ height: 21, width: 'auto' }} />
             </Link>
             <div className="hidden h-5 w-px bg-[var(--stroke-soft-200)] sm:block" />
             <div className="min-w-0">

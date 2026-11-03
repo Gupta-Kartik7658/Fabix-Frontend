@@ -264,6 +264,8 @@ export type WorkspaceRun = {
   timestamp?: string | null;
   /** Present only if the list/detail payload includes it. Do not invent. */
   token_count?: number | null;
+  /** Present only if the payload includes it. */
+  error_message?: string | null;
 };
 
 export type WorkspaceRunList = {
@@ -787,6 +789,10 @@ function normalizeWorkspaceRun(row: unknown): WorkspaceRun {
       asFiniteNumber(parsed.token_count) ??
       asFiniteNumber(parsed.tokens) ??
       asFiniteNumber(parsed.total_tokens) ??
+      null,
+    error_message:
+      pickString(parsed.error_message) ??
+      pickString(parsed.error) ??
       null,
   };
 }

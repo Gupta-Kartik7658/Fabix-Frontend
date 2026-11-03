@@ -20,7 +20,7 @@ import {
   ConnectorCatalogItem,
   PrivateConnectorCredentialStatus,
 } from '@/lib/types';
-import { AegisLogo } from '@/components/ui/AegisLogo';
+import { FabixLogo } from '@/components/ui/FabixLogo';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -196,7 +196,7 @@ export default function OnboardingPage() {
   return (
     <div className="flex min-h-screen flex-col bg-[var(--bg-app)]">
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--stroke-soft-200)] bg-[var(--white-0)] px-4 sm:px-6">
-        <AegisLogo
+        <FabixLogo
           style={{ height: 22, width: 'auto', color: 'var(--neutral-strong-950)' }}
         />
         <button

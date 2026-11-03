@@ -84,7 +84,7 @@ export function useWorkspaceShortcuts(handlers: WorkspaceShortcutHandlers, enabl
   }, [handlers, enabled]);
 }
 
-const SHORTCUTS: Array<{ group: string; items: Array<{ keys: string[]; label: string }> }> = [
+export const SHORTCUTS: Array<{ group: string; items: Array<{ keys: string[]; label: string }> }> = [
   {
     group: 'Conversation',
     items: [

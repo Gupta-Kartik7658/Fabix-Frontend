@@ -27,11 +27,11 @@ import { cn } from '@/lib/utils';
 type Theme = 'light' | 'dark';
 
 export function readPersistedTheme(): Theme {
-  if (typeof window === 'undefined') return 'light';
+  if (typeof window === 'undefined') return 'dark';
   try {
-    return localStorage.getItem('aegis_theme') === 'dark' ? 'dark' : 'light';
+    return localStorage.getItem('aegis_theme') === 'light' ? 'light' : 'dark';
   } catch {
-    return 'light';
+    return 'dark';
   }
 }
 
@@ -50,8 +50,7 @@ function applyDomTheme(next: Theme) {
 function applyTheme(next: Theme) {
   applyDomTheme(next);
   try {
-    if (next === 'dark') localStorage.setItem('aegis_theme', 'dark');
-    else localStorage.removeItem('aegis_theme');
+    localStorage.setItem('aegis_theme', next);
   } catch {
     // localStorage can throw in embedded contexts.
   }
@@ -59,7 +58,14 @@ function applyTheme(next: Theme) {
 
 /** Re-apply stored theme after client navigations. Does not rewrite storage. */
 export function applyPersistedAppTheme(pathname: string) {
-  if (pathname.startsWith('/auth')) {
+  if (
+    pathname.startsWith('/auth') ||
+    pathname.startsWith('/dashboard/inbox') ||
+    pathname.startsWith('/dashboard/memory') ||
+    pathname.startsWith('/dashboard/prompts') ||
+    pathname.startsWith('/dashboard/connectors') ||
+    pathname.startsWith('/dashboard/workspaces')
+  ) {
     applyDomTheme('dark');
     return;
   }

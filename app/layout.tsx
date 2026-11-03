@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Inter, JetBrains_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Inter, JetBrains_Mono, Manrope } from "next/font/google";
 import { ToastProvider } from "@/components/ui/Toast";
 import { AppThemeSync } from "@/components/ui/AppThemeSync";
+import { SmoothScroll } from "@/components/ui/SmoothScroll";
 import AgentationGate from "@/components/dev/AgentationGate";
+import { FullScreenLoader } from "@/components/loaders/full-screen-loader";
 import "./globals.css";
 
 const geist = Geist({
@@ -29,47 +31,51 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
+const manrope = Manrope({
+  subsets: ["latin"],
+  variable: "--font-manrope",
+  display: "swap",
+});
+
 // Site-wide SEO metadata. Per-page layouts override `title` via the
-// template ("Page Name | Aegis") while inheriting description/OG/etc.
+// template ("Page Name | Fabix") while inheriting description/OG/etc.
 // Copy uses plain hyphens only (no em or en dashes) and short
 // declarative sentences so the writing reads as human-authored.
 export const metadata: Metadata = {
   title: {
-    default: "Aegis - AI Agent Governance Platform",
-    template: "%s | Aegis",
+    default: "Fabix - Make AI work. Make every action count.",
+    template: "%s | Fabix",
   },
   description:
-    "Monitor, control, and audit every AI agent action across your repositories. Set governance policies, approve risky operations, and keep a complete activity record.",
-  applicationName: "Aegis",
+    "Connect your AI agents, execute workflows efficiently, and understand everything happening across your AI ecosystem, all from one platform.",
+  applicationName: "Fabix",
   keywords: [
-    "AI agent governance",
     "MCP",
-    "AI agent monitoring",
-    "AI agent audit",
+    "AI agents",
+    "AI agent workspaces",
+    "AI agent memory",
     "Claude Code",
     "Cursor",
-    "AI policy enforcement",
     "developer tools",
-    "agent oversight",
   ],
-  authors: [{ name: "Aegis" }],
-  creator: "Aegis",
-  publisher: "Aegis",
+  authors: [{ name: "Fabix" }],
+  creator: "Fabix",
+  publisher: "Fabix",
   openGraph: {
     type: "website",
-    siteName: "Aegis",
-    title: "Aegis - AI Agent Governance Platform",
+    siteName: "Fabix",
+    title: "Fabix - Make AI work. Make every action count.",
     description:
-      "Monitor, control, and audit every AI agent action across your repositories.",
+      "Connect your AI agents, execute workflows efficiently, and understand everything happening across your AI ecosystem.",
     locale: "en_US",
-    // images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "Aegis" }],
+    images: [{ url: "/fabix-logo.png", width: 529, height: 160, alt: "Fabix" }],
   },
   twitter: {
-    card: "summary_large_image",
-    title: "Aegis - AI Agent Governance Platform",
+    card: "summary",
+    title: "Fabix - Make AI work. Make every action count.",
     description:
-      "Monitor, control, and audit every AI agent action across your repositories.",
-    // images: ["/og-image.png"],
+      "Connect your AI agents, execute workflows efficiently, and understand everything happening across your AI ecosystem.",
+    images: ["/icon-512.png"],
   },
   robots: {
     index: true,
@@ -77,26 +83,14 @@ export const metadata: Metadata = {
     googleBot: { index: true, follow: true },
   },
   icons: {
-    // Prefer the adaptive SVG — uses currentColor + a prefers-color-scheme
-    // media query so the shield mark flips between black (light browser
-    // chrome) and white (dark browser chrome) automatically.
-    // PNG fallbacks let browsers that don't load SVG favicons (older
-    // Safari, some Android variants) still pick the right tone.
     icon: [
-      { url: "/favicon.svg", type: "image/svg+xml" },
-      {
-        url: "/favicon-light.png",
-        type: "image/png",
-        media: "(prefers-color-scheme: light)",
-      },
-      {
-        url: "/favicon-dark.png",
-        type: "image/png",
-        media: "(prefers-color-scheme: dark)",
-      },
+      { url: "/favicon.ico", sizes: "16x16 32x32 48x48" },
+      { url: "/favicon-32.png", type: "image/png", sizes: "32x32" },
+      { url: "/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icon-512.png", type: "image/png", sizes: "512x512" },
     ],
-    shortcut: "/favicon.svg",
-    apple: "/favicon-light.png",
+    shortcut: "/favicon.ico",
+    apple: { url: "/apple-touch-icon.png", sizes: "180x180" },
   },
 };
 
@@ -113,7 +107,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`h-full ${geist.variable} ${geistMono.variable} ${inter.variable} ${jetbrainsMono.variable}`}
+      className={`h-full ${geist.variable} ${geistMono.variable} ${inter.variable} ${jetbrainsMono.variable} ${manrope.variable}`}
       suppressHydrationWarning
     >
       <head>
@@ -139,12 +133,18 @@ export default function RootLayout({
             embedded contexts (iframes with cookies disabled, etc.). */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var p=location.pathname;var onAuth=p.startsWith('/auth');var onDash=p.startsWith('/dashboard');var onOnboard=p.startsWith('/onboarding');var onWorkspace=p.startsWith('/workspaces');if(!onAuth&&!onDash&&!onOnboard&&!onWorkspace)return;if(onAuth){document.documentElement.dataset.theme='dark';}else if(onDash||onWorkspace){if(localStorage.getItem('aegis_theme')==='dark')document.documentElement.dataset.theme='dark';}if(onDash){if(localStorage.getItem('aegis_sidebar_collapsed')==='true')document.documentElement.dataset.sidebarCollapsed='true';}var d=localStorage.getItem('aegis_demo');var url=new URLSearchParams(location.search);if(url.get('real')==='1')return;if(url.get('demo')==='1'||url.get('preview')==='1'||d==='true')document.documentElement.dataset.demo='true';}catch(e){}})();`,
+            __html: `(function(){try{var p=location.pathname;var onAuth=p.startsWith('/auth');var onDash=p.startsWith('/dashboard');var onOnboard=p.startsWith('/onboarding');var onWorkspace=p.startsWith('/workspaces');if(!onAuth&&!onDash&&!onOnboard&&!onWorkspace)return;if(onAuth||p.startsWith('/dashboard/inbox')||p.startsWith('/dashboard/memory')||p.startsWith('/dashboard/prompts')||p.startsWith('/dashboard/connectors')||p.startsWith('/dashboard/workspaces')){document.documentElement.dataset.theme='dark';}else if(onDash||onWorkspace){if(localStorage.getItem('aegis_theme')!=='light')document.documentElement.dataset.theme='dark';}if(onDash){if(localStorage.getItem('aegis_sidebar_collapsed')==='true')document.documentElement.dataset.sidebarCollapsed='true';}var d=localStorage.getItem('aegis_demo');var url=new URLSearchParams(location.search);if(url.get('real')==='1')return;if(url.get('demo')==='1'||url.get('preview')==='1'||d==='true')document.documentElement.dataset.demo='true';}catch(e){}})();`,
+          }}
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{if(sessionStorage.getItem('fabix_platform_intro')==='1')document.documentElement.dataset.platformIntro='seen';}catch(e){}})();`,
           }}
         />
       </head>
       <body className="min-h-full bg-[var(--bg-app)] text-[var(--text-strong)] antialiased">
         <AppThemeSync />
+        <SmoothScroll />
         <ToastProvider>{children}</ToastProvider>
         {/* Floating annotation toolbar — dev-only. AgentationGate is
             a thin client wrapper that does the next/dynamic + NODE_ENV
@@ -152,6 +152,7 @@ export default function RootLayout({
             Mounted ONCE here at the root so annotations work on every
             route (auth, onboarding, dashboard, email previews). */}
         <AgentationGate />
+        <FullScreenLoader />
       </body>
     </html>
   );

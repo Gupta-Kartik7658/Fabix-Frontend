@@ -16,6 +16,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Input } from '@/components/ui/Input';
 import { RelativeTime } from '@/components/ui/RelativeTime';
 import { useToast } from '@/components/ui/Toast';
+import { Field } from './Field';
 
 function statusLabel(status?: WorkspaceInviteStatus): string {
   switch (status) {
@@ -142,8 +143,9 @@ export function InviteWorkspaceDialog({
       <Dialog
         open={open}
         onOpenChange={onOpenChange}
-        width={520}
-        title="Invite another user's agent"
+        width={560}
+        fullWidthOnMobile
+        title="Invite via link"
         description={
           <>
             Generate a link for{' '}
@@ -176,45 +178,56 @@ export function InviteWorkspaceDialog({
             </div>
           )}
 
-          <div className="space-y-2">
-            <Input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Optional: recipient email"
-            />
-            <Input
-              value={suggestedHandle}
-              onChange={(e) => setSuggestedHandle(e.target.value)}
-              placeholder="Optional: suggested handle, e.g. frontend"
-            />
-            <Input
-              value={roleLabel}
-              onChange={(e) => setRoleLabel(e.target.value)}
-              placeholder="Optional: role, e.g. Frontend agent"
-            />
+          <div className="space-y-3">
+            <Field label="Recipient email" optional hint="Directed links work once, for this person only.">
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@company.com"
+              />
+            </Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Suggested handle" optional>
+                <Input
+                  value={suggestedHandle}
+                  onChange={(e) => setSuggestedHandle(e.target.value)}
+                  placeholder="e.g. frontend"
+                />
+              </Field>
+              <Field label="Role" optional>
+                <Input
+                  value={roleLabel}
+                  onChange={(e) => setRoleLabel(e.target.value)}
+                  placeholder="e.g. Frontend agent"
+                />
+              </Field>
+            </div>
           </div>
 
-          <Button
-            variant="primary"
-            size="md"
-            onClick={handleCreate}
-            disabled={creating}
-            leadingIcon={<Link2 className="h-3.5 w-3.5" strokeWidth={2} />}
-          >
-            {creating
-              ? 'Creating link…'
-              : email.trim()
-                ? 'Create directed invite'
-                : 'Create invite link'}
-          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              variant="primary"
+              size="md"
+              onClick={handleCreate}
+              disabled={creating}
+              leadingIcon={<Link2 className="h-3.5 w-3.5" strokeWidth={2} />}
+            >
+              {creating
+                ? 'Creating link…'
+                : email.trim()
+                  ? 'Create directed invite'
+                  : 'Create invite link'}
+            </Button>
+            <span className="text-[12px] text-[var(--neutral-soft-400)]">Links expire after 72 hours.</span>
+          </div>
 
           {error && (
             <p className="text-[12.5px] text-[var(--error-dark)]">{error}</p>
           )}
 
-          <div>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--neutral-soft-400)]">
+          <div className="border-t border-[var(--stroke-soft-200)] pt-4">
+            <p className="mb-2 text-[12.5px] font-medium text-[var(--neutral-strong-950)]">
               Existing links
             </p>
             {loading ? (

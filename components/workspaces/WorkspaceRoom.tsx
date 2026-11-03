@@ -1,8 +1,21 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, FileText, Moon, Pencil, Sun, UserPlus } from 'lucide-react';
+import {
+  Activity,
+  ArrowLeft,
+  Bot,
+  ChevronDown,
+  Link2,
+  ListChecks,
+  MessagesSquare,
+  Paperclip,
+  Pencil,
+  Settings2,
+  UserPlus,
+  type LucideIcon,
+} from 'lucide-react';
 import {
   api,
   getWorkspaceMessageStreamUrl,
@@ -26,19 +39,31 @@ import { AgentChat } from './AgentChat';
 import { AgentKeyDialog } from './AgentKeyDialog';
 import { AgentRoster } from './AgentRoster';
 import { Composer } from './Composer';
-import { MentionText, AgentHueProvider } from './agent-visuals';
+import { AgentGlyph, MentionText, AgentHueProvider } from './agent-visuals';
+import { UserMenu } from '@/components/ui/UserMenu';
+import { EditWorkspaceDialog } from './CreateWorkspaceDialog';
+import { FilesPanel } from './FilesPanel';
+import { WorkspaceSettingsPanel } from './WorkspaceSettingsPanel';
 import { SampleDataChip, useIsDemo } from './WorkspaceDemoGate';
 import { DEMO_VIEWER } from '@/lib/workspace-preview';
 import { recordRecentWorkspace, resolveRecentWorkspaces } from '@/lib/recentWorkspaces';
 import { TaskChecklist } from './TaskChecklist';
 import { RoomSidebar, type SiblingMeta } from './RoomSidebar';
 import { InlineEdit } from './InlineEdit';
-import { Kbd, ShortcutsDialog, useWorkspaceShortcuts } from './shortcuts';
+import { ShortcutsDialog, useWorkspaceShortcuts } from './shortcuts';
 import { WorkspaceAgentsMdDialog } from './WorkspaceAgentsMdDialog';
 import { InviteWorkspaceDialog } from './InviteWorkspaceDialog';
 import { WorkspaceRunsPanel } from './WorkspaceRunsPanel';
 
-type Tab = 'conversation' | 'agents' | 'tasks' | 'runs' | 'settings';
+type Tab = 'conversation' | 'agents' | 'tasks' | 'runs' | 'settings' | 'files';
+
+const TABS: Tab[] = ['conversation', 'agents', 'tasks', 'runs', 'settings', 'files'];
+
+/** `?tab=` values accepted from links; `executions` is an alias for runs. */
+function tabFromParam(value: string | null): Tab {
+  if (value === 'executions') return 'runs';
+  return TABS.includes(value as Tab) ? (value as Tab) : 'conversation';
+}
 
 /** Reduces a workspace detail to what the room switcher needs. */
 function metaFrom(d: WorkspaceDetail): SiblingMeta {
@@ -78,6 +103,9 @@ export function WorkspaceRoom({ workspaceId }: { workspaceId: string }) {
   const [taskFocus, setTaskFocus] = useState(0);
   const [inviteOpen, setInviteOpen] = useState(0);
   const [titleEdit, setTitleEdit] = useState(0);
+  const [editOpen, setEditOpen] = useState(false);
+  const [taskDraft, setTaskDraft] = useState('');
+  const [runsAgent, setRunsAgent] = useState('');
   const [runsTotal, setRunsTotal] = useState<number | null>(null);
   const [people, setPeople] = useState<WorkspacePerson[]>([]);
   const [focusMessageId, setFocusMessageId] = useState<string | null>(null);
@@ -123,9 +151,7 @@ export function WorkspaceRoom({ workspaceId }: { workspaceId: string }) {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const nextTab = params.get('tab');
-    const allowed: Tab[] = ['conversation', 'agents', 'tasks', 'runs', 'settings'];
-    setTab(allowed.includes(nextTab as Tab) ? (nextTab as Tab) : 'conversation');
+    setTab(tabFromParam(params.get('tab')));
     setRunsTotal(null);
     setFocusMessageId(params.get('message'));
   }, [workspaceId]);
@@ -173,7 +199,7 @@ export function WorkspaceRoom({ workspaceId }: { workspaceId: string }) {
     };
   }, [isDemo, workspaceId]);
 
-  const agents = detail?.agents ?? [];
+  const agents = useMemo(() => detail?.agents ?? [], [detail?.agents]);
   const pointers = useMemo(
     () => (detail?.pointers ?? []).slice().sort((a, b) => a.sort_order - b.sort_order),
     [detail?.pointers],
@@ -295,6 +321,7 @@ export function WorkspaceRoom({ workspaceId }: { workspaceId: string }) {
         setComposerFocus((n) => n + 1);
       },
       newTask: () => {
+        setTaskDraft('');
         setTab('tasks');
         setTaskFocus((n) => n + 1);
       },
@@ -311,19 +338,27 @@ export function WorkspaceRoom({ workspaceId }: { workspaceId: string }) {
     !issued && !agentsMdOpen,
   );
 
+  const shellHeight = 'h-[calc(100dvh-48px)] lg:h-dvh';
+
   if (!detail && !error) {
     return (
-      <div className="workspace-room flex h-dvh">
-        <aside className="hidden w-[248px] shrink-0 border-r border-[var(--stroke-soft-200)] p-3 lg:block">
-          <Skeleton className="h-7 w-32" />
-          <Skeleton className="mt-4 h-9 w-full" />
-          <Skeleton className="mt-1.5 h-9 w-full" />
-        </aside>
-        <div className="flex-1 p-6">
-          <Skeleton className="h-6 w-56" />
-          <Skeleton className="mt-3 h-4 w-full max-w-[520px]" />
-          <Skeleton className="mt-8 h-16 w-full" />
-          <Skeleton className="mt-2 h-16 w-3/4" />
+      <div className={cn('workspace-room flex flex-col bg-[var(--bg-app)]', shellHeight)}>
+        <div className="flex h-[56px] shrink-0 items-center border-b border-[var(--stroke-soft-200)] bg-[var(--bg-surface)] px-4 sm:px-6">
+          <Skeleton className="h-4 w-48" />
+        </div>
+        <div className="px-4 pt-5 sm:px-6">
+          <Skeleton className="h-7 w-64" />
+          <Skeleton className="mt-3 h-4 w-full max-w-[560px]" />
+          <Skeleton className="mt-4 h-4 w-72" />
+          <div className="mt-6 flex gap-5 pb-3">
+            {Array.from({ length: 6 }, (_, i) => (
+              <Skeleton key={i} className="h-4 w-20" />
+            ))}
+          </div>
+        </div>
+        <div className="flex-1 border-t border-[var(--stroke-soft-200)] px-4 py-6 sm:px-6">
+          <Skeleton className="h-14 w-full max-w-[880px]" />
+          <Skeleton className="mt-3 h-14 w-3/4 max-w-[680px]" />
         </div>
       </div>
     );
@@ -331,147 +366,216 @@ export function WorkspaceRoom({ workspaceId }: { workspaceId: string }) {
 
   if (error && !detail) {
     return (
-      <div className="mx-auto max-w-[640px] px-6 py-10">
-        <ErrorBanner message={error} onDismiss={() => setError(null)} onRetry={load} />
-        <Link
-          href="/dashboard/workspaces"
-          className="mt-4 inline-flex items-center gap-1.5 text-[13px] text-[var(--primary-dark)] hover:underline"
-        >
-          <ArrowLeft size={14} /> Back to workspaces
-        </Link>
+      <div className={cn('workspace-room bg-[var(--bg-app)]', shellHeight)}>
+        <div className="mx-auto max-w-[640px] px-6 py-10">
+          <ErrorBanner message={error} onDismiss={() => setError(null)} onRetry={load} />
+          <Link
+            href="/dashboard/workspaces"
+            className="mt-4 inline-flex items-center gap-1.5 text-[13px] text-[var(--primary-dark)] hover:underline"
+          >
+            <ArrowLeft size={14} /> Back to workspaces
+          </Link>
+        </div>
       </div>
     );
   }
 
   const workspace = detail!.workspace;
-
-  const tabs: Array<{ key: Tab; label: string; count?: number | string }> = [
-    { key: 'conversation', label: 'Conversation', count: detail!.messages.length },
-    { key: 'agents', label: 'Agents', count: activeCount },
-    { key: 'tasks', label: 'Tasks', count: pointers.length },
-    { key: 'runs', label: 'Runs', count: runsTotal ?? '—' },
-    { key: 'settings', label: 'Settings' },
+  const doneCount = pointers.filter((p) => p.status === 'done').length;
+  const activeAgents = agents.filter((a) => a.status === 'active');
+  const fileCount = detail!.messages.reduce((n, m) => n + m.file_refs.length, 0);
+  const runsShown = runsTotal ?? runCount;
+  const tabs: Array<{ key: Tab; label: string; icon: LucideIcon; count?: number | string }> = [
+    { key: 'conversation', label: 'Conversation', icon: MessagesSquare, count: detail!.messages.length },
+    { key: 'agents', label: 'Agents', icon: Bot, count: activeCount },
+    {
+      key: 'tasks',
+      label: 'Tasks',
+      icon: ListChecks,
+      count: pointers.length ? `${doneCount}/${pointers.length}` : 0,
+    },
+    { key: 'runs', label: 'Runs', icon: Activity, count: formatCompactNumber(runsShown) },
+    { key: 'settings', label: 'Settings', icon: Settings2 },
+    { key: 'files', label: 'Files', icon: Paperclip, count: fileCount },
   ];
+
+  const openAddAgent = () => {
+    setTab('agents');
+    setInviteOpen((n) => n + 1);
+  };
 
   return (
     <AgentHueProvider handles={agents.map((a) => a.handle)}>
-      <div className="workspace-room flex h-dvh overflow-hidden bg-[var(--bg-app)]">
-        <aside className="hidden w-[248px] shrink-0 flex-col border-r border-[var(--stroke-soft-200)] bg-[var(--bg-app)] lg:flex">
-          <RoomSidebar
-            workspaces={siblings}
-            meta={siblingMeta}
-            currentId={workspaceId}
-            recents={recents}
-          />
-        </aside>
+      <div className={cn('workspace-room flex min-w-0 flex-col bg-[var(--bg-app)]', shellHeight)}>
+        <div className="flex h-[56px] shrink-0 items-center gap-2 border-b border-[var(--stroke-soft-200)] bg-[var(--bg-surface)] px-4 sm:px-6">
+          <nav aria-label="Breadcrumb" className="flex min-w-0 items-center text-[14px] tracking-[-0.02em]">
+            <Link
+              href="/dashboard/workspaces"
+              className="shrink-0 font-medium text-[var(--neutral-soft-400)] transition-colors hover:text-[var(--neutral-strong-950)]"
+            >
+              Workspaces
+            </Link>
+            <span className="mx-[7px] text-[var(--neutral-soft-400)]" aria-hidden>
+              ·
+            </span>
+            <WorkspaceSwitcher
+              title={workspace.title}
+              workspaces={siblings}
+              meta={siblingMeta}
+              currentId={workspaceId}
+              recents={recents}
+            />
+          </nav>
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <span className="hidden sm:contents">
+              <SampleDataChip />
+            </span>
+            <UserMenu />
+          </div>
+        </div>
 
-        <main className="flex min-w-0 flex-1 flex-col bg-[var(--white-0)]">
-          <header className="border-b border-[var(--stroke-soft-200)] px-5 py-4">
-            <p className="mb-1.5 text-[11px] text-[var(--neutral-soft-400)]">
-              Workspace · {tab}
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href="/dashboard/workspaces"
-                className="rounded-md p-1 text-[var(--neutral-sub-600)] hover:bg-[var(--neutral-weak-50)] lg:hidden"
-                aria-label="Back to workspaces"
-              >
-                <ArrowLeft size={15} />
-              </Link>
-              <h1 className="min-w-0 text-[20px] font-semibold tracking-[-0.022em] text-[var(--neutral-strong-950)]">
+        <header className="shrink-0 px-4 pt-5 sm:px-6">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:gap-6">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-[22px] font-semibold leading-[1.3] tracking-[-0.022em] text-[var(--neutral-strong-950)]">
                 <InlineEdit
                   value={workspace.title}
-                  ariaLabel="Workspace title"
+                  ariaLabel="Workspace name"
                   placeholder="Untitled workspace"
                   onCommit={(title) => saveBrief({ title: title || 'Untitled workspace' })}
-                  className="w-[32ch] text-[20px] font-semibold tracking-[-0.022em]"
-                  readClassName="inline-block w-auto max-w-[38ch] truncate whitespace-nowrap"
+                  className="w-full text-[22px] font-semibold tracking-[-0.022em]"
+                  readClassName="whitespace-normal! [overflow-wrap:anywhere]"
                   editSignal={titleEdit}
                 />
               </h1>
-              <SampleDataChip />
-              <p className="text-[12.5px] text-[var(--neutral-sub-600)]">
-                {formatCompactNumber(runCount)} runs · {formatCompactNumber(tokenCount)} tokens
-              </p>
-              <div className="ml-auto flex items-center gap-1.5">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  leadingIcon={<Pencil size={12} />}
-                  onClick={() => setTitleEdit((n) => n + 1)}
-                >
-                  Rename
-                </Button>
-                <Button variant="secondary" size="sm" onClick={() => setInviteLinkOpen(true)}>
-                  Invite
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  leadingIcon={<UserPlus size={13} />}
-                  onClick={() => {
-                    setTab('agents');
-                    setInviteOpen((n) => n + 1);
-                  }}
-                >
-                  Add an agent
-                </Button>
+              <div className="mt-1 max-w-[88ch] text-[13.5px] leading-[1.6] text-[var(--neutral-sub-600)]">
+                <InlineEdit
+                  value={workspace.task ?? ''}
+                  ariaLabel="Workspace goal"
+                  placeholder="No goal defined. Click to add one."
+                  multiline
+                  onCommit={(task) => saveBrief({ task: task || null })}
+                  className="text-[13.5px] leading-[1.6]"
+                  readClassName="max-md:line-clamp-2"
+                  renderRead={(text) => <MentionText text={text} knownHandles={handles} />}
+                />
               </div>
             </div>
 
-            <div className="mt-1.5 max-w-[76ch] text-[12.5px] leading-[1.6] text-[var(--neutral-sub-600)]">
-              <InlineEdit
-                value={workspace.task ?? ''}
-                ariaLabel="Workspace goal"
-                placeholder="Add a goal for this workspace"
-                multiline
-                onCommit={(task) => saveBrief({ task: task || null })}
-                className="text-[12.5px] leading-[1.6]"
-                renderRead={(text) => <MentionText text={text} knownHandles={handles} />}
-              />
+            <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+              <Button
+                variant="ghost"
+                size="sm"
+                leadingIcon={<Pencil size={12} />}
+                onClick={() => setTitleEdit((n) => n + 1)}
+              >
+                Rename
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                leadingIcon={<Link2 size={13} />}
+                onClick={() => setInviteLinkOpen(true)}
+              >
+                Invite
+              </Button>
+              <Button variant="primary" size="sm" leadingIcon={<UserPlus size={13} />} onClick={openAddAgent}>
+                Add agent
+              </Button>
             </div>
-          </header>
+          </div>
 
-          <div className="flex items-center gap-1 overflow-x-auto border-b border-[var(--stroke-soft-200)] px-4 py-2">
-            {tabs.map((item) => (
+          <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[12.5px] text-[var(--neutral-sub-600)]">
+            <button
+              type="button"
+              onClick={() => setTab('agents')}
+              className="flex items-center gap-2 rounded-[6px] outline-none transition-colors hover:text-[var(--neutral-strong-950)] focus-visible:ring-2 focus-visible:ring-[var(--primary-alpha-24)]"
+              title={activeAgents.map((a) => `@${a.handle}${a.role_label ? ` · ${a.role_label}` : ''}`).join('\n') || 'No agents yet'}
+            >
+              {activeAgents.length > 0 && (
+                <span className="flex items-center">
+                  {activeAgents.slice(0, 5).map((a, i) => (
+                    <span
+                      key={a.id}
+                      className="overflow-hidden rounded-[6px] ring-2 ring-[var(--bg-app)]"
+                      style={{ marginLeft: i === 0 ? 0 : -6, zIndex: 5 - i }}
+                    >
+                      <AgentGlyph handle={a.handle} roleLabel={a.role_label} size="sm" />
+                    </span>
+                  ))}
+                  {activeAgents.length > 5 && (
+                    <span className="ml-1.5 tabular-nums text-[var(--neutral-soft-400)]">+{activeAgents.length - 5}</span>
+                  )}
+                </span>
+              )}
+              <HeaderStat value={String(activeCount)} label={activeCount === 1 ? 'agent' : 'agents'} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('runs')}
+              className="rounded-[6px] outline-none transition-colors hover:text-[var(--neutral-strong-950)] focus-visible:ring-2 focus-visible:ring-[var(--primary-alpha-24)]"
+            >
+              <HeaderStat value={formatCompactNumber(runsShown)} label={runsShown === 1 ? 'run' : 'runs'} />
+            </button>
+            <span title={`${tokenCount.toLocaleString()} tokens`}>
+              <HeaderStat value={formatCompactNumber(tokenCount)} label="tokens" />
+            </span>
+            {people.length > 0 && (
+              <span title={people.map((p) => p.name).join(', ')}>
+                <HeaderStat value={String(people.length)} label={people.length === 1 ? 'person' : 'people'} />
+              </span>
+            )}
+          </div>
+        </header>
+
+        <nav
+          aria-label="Workspace sections"
+          className="mt-3 flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[var(--stroke-soft-200)] px-2 [scrollbar-width:none] sm:px-4"
+        >
+          {tabs.map((item) => {
+            const Icon = item.icon;
+            const selected = tab === item.key;
+            return (
               <button
                 key={item.key}
                 type="button"
                 onClick={() => setTab(item.key)}
-                aria-pressed={tab === item.key}
+                aria-current={selected ? 'page' : undefined}
                 className={cn(
-                  'flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors',
-                  tab === item.key
-                    ? 'bg-[var(--neutral-weak-50)] text-[var(--neutral-strong-950)]'
-                    : 'text-[var(--neutral-sub-600)] hover:bg-[var(--neutral-weak-50)]/60 hover:text-[var(--neutral-strong-950)]',
+                  'relative flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-t-[6px] px-2.5 text-[13px] font-medium outline-none transition-colors focus-visible:bg-[var(--neutral-weak-50)]',
+                  selected
+                    ? 'text-[var(--neutral-strong-950)]'
+                    : 'text-[var(--neutral-sub-600)] hover:text-[var(--neutral-strong-950)]',
                 )}
               >
+                <Icon
+                  size={15}
+                  strokeWidth={1.9}
+                  className={selected ? 'text-[var(--neutral-strong-950)]' : 'text-[var(--neutral-soft-400)]'}
+                />
                 {item.label}
                 {item.count !== undefined && (
-                  <span className="text-[12px] text-[var(--neutral-soft-400)]">
+                  <span className="rounded-full bg-[var(--neutral-weak-50)] px-1.5 text-[11px] leading-[18px] tabular-nums text-[var(--neutral-sub-600)]">
                     {item.count}
                   </span>
                 )}
+                {selected && (
+                  <span aria-hidden className="absolute inset-x-2 bottom-0 h-[2px] rounded-full bg-[var(--primary-base)]" />
+                )}
               </button>
-            ))}
-            <button
-              type="button"
-              disabled
-              title="Coming soon — file storage is not available yet"
-              className="ml-0.5 flex cursor-not-allowed items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13px] font-medium text-[var(--neutral-soft-400)]"
-            >
-              Files
-            </button>
+            );
+          })}
+        </nav>
+
+        {error && (
+          <div className="px-4 pt-3 sm:px-6">
+            <ErrorBanner message={error} onDismiss={() => setError(null)} onRetry={load} />
           </div>
+        )}
 
-          {error && (
-            <div className="px-4 pt-3">
-              <ErrorBanner message={error} onDismiss={() => setError(null)} onRetry={load} />
-            </div>
-          )}
-
+        <div className="relative min-h-0 flex-1">
           {tab === 'conversation' && (
-            <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex h-full min-h-0 flex-col">
               <AgentChat
                 messages={detail!.messages}
                 agents={agents}
@@ -479,81 +583,84 @@ export function WorkspaceRoom({ workspaceId }: { workspaceId: string }) {
                 viewerAgentIds={viewerAgentIds}
                 workspaceTitle={workspace.title}
                 focusMessageId={focusMessageId}
+                onCreateTask={(message) => {
+                  setTaskDraft(taskTitleFrom(message.message_text));
+                  setTab('tasks');
+                  setTaskFocus((n) => n + 1);
+                }}
+                onViewRuns={(handle) => {
+                  setRunsAgent(handle);
+                  setTab('runs');
+                }}
               />
-              <Composer
-                agents={agents}
-                people={people}
-                senderId={senderId}
-                onSend={sendMessage}
-                focusSignal={composerFocus}
-              />
-            </div>
-          )}
-
-          {tab === 'agents' && (
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <AgentRoster
-                workspaceId={workspaceId}
-                workspaceTitle={detail!.workspace.title}
-                agents={agents}
-                onInvite={inviteAgent}
-                onRotate={rotateKey}
-                onRemove={removeAgent}
-                onUpdate={updateAgent}
-                openInviteSignal={inviteOpen}
-              />
-            </div>
-          )}
-
-          {tab === 'tasks' && (
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <TaskChecklist
-                pointers={pointers}
-                agents={agents}
-                viewerAgentIds={viewerAgentIds}
-                onCreate={createPointer}
-                onUpdate={updatePointer}
-                onDelete={deletePointer}
-                focusSignal={taskFocus}
-              />
-            </div>
-          )}
-
-          <div className={cn('min-h-0 flex-1 overflow-y-auto', tab !== 'runs' && 'hidden')}>
-            <WorkspaceRunsPanel workspaceId={workspaceId} onTotalChange={setRunsTotal} />
-          </div>
-
-          {tab === 'settings' && (
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-              <div className="max-w-[520px] space-y-3">
-                <button
-                  type="button"
-                  onClick={() => setAgentsMdOpen(true)}
-                  className="flex w-full items-center gap-2 rounded-lg border border-[var(--stroke-soft-200)] px-3 py-2.5 text-left text-[13px] text-[var(--neutral-strong-950)] hover:bg-[var(--neutral-weak-50)]"
-                >
-                  <FileText size={14} className="text-[var(--neutral-sub-600)]" />
-                  AGENTS.md
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setHelpOpen(true)}
-                  className="flex w-full items-center justify-between rounded-lg border border-[var(--stroke-soft-200)] px-3 py-2.5 text-[13px] text-[var(--neutral-strong-950)] hover:bg-[var(--neutral-weak-50)]"
-                >
-                  Keyboard shortcuts
-                  <Kbd>?</Kbd>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                  className="flex w-full items-center gap-2 rounded-lg border border-[var(--stroke-soft-200)] px-3 py-2.5 text-left text-[13px] text-[var(--neutral-strong-950)] hover:bg-[var(--neutral-weak-50)]"
-                >
-                  {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
-                  {theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-                </button>
+              <div className="shrink-0 border-t border-[var(--stroke-soft-200)] bg-[var(--bg-app)]">
+                <Composer
+                  agents={agents}
+                  people={people}
+                  senderId={senderId}
+                  onSend={sendMessage}
+                  focusSignal={composerFocus}
+                />
               </div>
             </div>
           )}
-        </main>
+
+          <div className={cn('h-full min-h-0 overflow-hidden', tab !== 'agents' && 'hidden')}>
+            <AgentRoster
+              workspaceId={workspaceId}
+              workspaceTitle={detail!.workspace.title}
+              agents={agents}
+              onInvite={inviteAgent}
+              onRotate={rotateKey}
+              onRemove={removeAgent}
+              onUpdate={updateAgent}
+              openInviteSignal={inviteOpen}
+            />
+          </div>
+
+          <div className={cn('h-full min-h-0 overflow-hidden', tab !== 'tasks' && 'hidden')}>
+            <TaskChecklist
+              pointers={pointers}
+              agents={agents}
+              viewerAgentIds={viewerAgentIds}
+              onCreate={createPointer}
+              onUpdate={updatePointer}
+              onDelete={deletePointer}
+              focusSignal={taskFocus}
+              focusDraft={taskDraft}
+            />
+          </div>
+
+          <div className={cn('h-full min-h-0 overflow-y-auto', tab !== 'runs' && 'hidden')}>
+            <WorkspaceRunsPanel
+              workspaceId={workspaceId}
+              onTotalChange={setRunsTotal}
+              agentFilter={runsAgent}
+              onAgentFilterChange={setRunsAgent}
+            />
+          </div>
+
+          {tab === 'settings' && (
+            <WorkspaceSettingsPanel
+              workspace={workspace}
+              people={people}
+              theme={theme}
+              onThemeChange={setTheme}
+              onEditDetails={() => setEditOpen(true)}
+              onOpenAgentsMd={() => setAgentsMdOpen(true)}
+              onInvitePeople={() => setInviteLinkOpen(true)}
+              onAddAgent={openAddAgent}
+            />
+          )}
+
+          {tab === 'files' && (
+            <FilesPanel
+              messages={detail!.messages}
+              agents={agents}
+              onOpenConversation={() => setTab('conversation')}
+            />
+          )}
+        </div>
 
         <AgentKeyDialog open={!!issued} onOpenChange={(open) => !open && setIssued(null)} issued={issued} />
         <WorkspaceAgentsMdDialog open={agentsMdOpen} onOpenChange={setAgentsMdOpen} />
@@ -564,7 +671,88 @@ export function WorkspaceRoom({ workspaceId }: { workspaceId: string }) {
           open={inviteLinkOpen}
           onOpenChange={setInviteLinkOpen}
         />
+        <EditWorkspaceDialog
+          workspace={editOpen ? workspace : null}
+          onOpenChange={(open) => !open && setEditOpen(false)}
+          onSaved={() => {
+            setEditOpen(false);
+            void load();
+          }}
+        />
       </div>
     </AgentHueProvider>
+  );
+}
+
+function taskTitleFrom(text: string | null) {
+  const flat = (text ?? '').replace(/\s+/g, ' ').trim();
+  return flat.length > 120 ? `${flat.slice(0, 117).trimEnd()}…` : flat;
+}
+
+function HeaderStat({ value, label }: { value: string; label: string }) {
+  return (
+    <span>
+      <span className="font-medium tabular-nums text-[var(--neutral-strong-950)]">{value}</span> {label}
+    </span>
+  );
+}
+
+function WorkspaceSwitcher({
+  title,
+  workspaces,
+  meta,
+  currentId,
+  recents,
+}: {
+  title: string;
+  workspaces: WorkspaceSummary[];
+  meta: Record<string, SiblingMeta>;
+  currentId: string;
+  recents: ReturnType<typeof resolveRecentWorkspaces>;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative min-w-0">
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Switch workspace, current: ${title}`}
+        onClick={() => setOpen((v) => !v)}
+        className="-mx-1.5 flex min-w-0 items-center gap-1 rounded-[7px] px-1.5 py-1 font-semibold text-[var(--neutral-strong-950)] outline-none transition-colors hover:bg-[var(--neutral-weak-50)] focus-visible:bg-[var(--neutral-weak-50)]"
+      >
+        <span className="truncate">{title}</span>
+        <ChevronDown size={14} className={cn('shrink-0 text-[var(--neutral-soft-400)] transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          onClick={(event) => {
+            if ((event.target as HTMLElement).closest('a')) setOpen(false);
+          }}
+          className="absolute left-0 top-[calc(100%+8px)] z-40 flex max-h-[min(480px,70vh)] w-[300px] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-[12px] border border-[var(--stroke-soft-200)] bg-[var(--bg-surface)] text-[13px] tracking-normal shadow-[0_12px_32px_rgba(0,0,0,0.28)]"
+        >
+          <RoomSidebar workspaces={workspaces} meta={meta} currentId={currentId} recents={recents} />
+        </div>
+      )}
+    </div>
   );
 }

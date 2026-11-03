@@ -16,7 +16,8 @@
  * make this decision themselves.
  */
 
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { installPreviewApi } from '@/lib/preview-data';
 import { installWorkspacePreviewApi } from '@/lib/workspace-preview';
 
 const WorkspaceDemoContext = createContext(false);
@@ -49,9 +50,21 @@ export function WorkspaceDemoGate({ children }: { children: ReactNode }) {
   // before children mount and therefore before they call the api.
   const [demo] = useState(() => {
     const on = isWorkspaceDemoMode();
-    if (on) installWorkspacePreviewApi();
+    if (on) {
+      // The app shell (sidebar, account menu) reads non-workspace APIs too.
+      installPreviewApi();
+      installWorkspacePreviewApi();
+    }
     return on;
   });
+
+  useEffect(() => {
+    if (!demo || document.documentElement.dataset.demo) return;
+    document.documentElement.dataset.demo = 'true';
+    return () => {
+      delete document.documentElement.dataset.demo;
+    };
+  }, [demo]);
 
   return <WorkspaceDemoContext.Provider value={demo}>{children}</WorkspaceDemoContext.Provider>;
 }

@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
-import { AegisLogo } from '@/components/ui/AegisLogo';
+import { FabixLogo } from '@/components/ui/FabixLogo';
 
 /**
  * Global error boundary — rendered when an uncaught error bubbles up
@@ -33,10 +33,10 @@ export default function GlobalError({
       <div className="w-full max-w-[440px]">
         <Link
           href="/dashboard"
-          aria-label="Aegis"
+          aria-label="Fabix"
           className="inline-flex text-[var(--neutral-strong-950)] transition-opacity hover:opacity-80"
         >
-          <AegisLogo style={{ height: 24, width: 'auto' }} />
+          <FabixLogo style={{ height: 24, width: 'auto' }} />
         </Link>
 
         <p className="mt-10 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--error)]">

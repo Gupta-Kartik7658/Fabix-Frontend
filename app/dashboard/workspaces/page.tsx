@@ -7,7 +7,7 @@ import { WorkspacesList } from '@/components/workspaces/WorkspacesList';
 export default function DashboardWorkspacesPage() {
   return (
     <>
-      <Topbar title="Workspaces" subtitle="Agent collaboration rooms" />
+      <Topbar title="Workspaces" />
       <WorkspaceDemoGate>
         <WorkspacesList />
       </WorkspaceDemoGate>

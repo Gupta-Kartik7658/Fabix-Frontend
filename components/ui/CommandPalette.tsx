@@ -148,7 +148,7 @@ export function CommandPalette() {
       icon: LucideIcon;
       keywords: string[];
     }> = [
-      { label: 'Inbox', href: '/dashboard/inbox', icon: Inbox, keywords: ['invites', 'mentions', 'mail'] },
+      { label: 'Activity Center', href: '/dashboard/inbox', icon: Inbox, keywords: ['inbox', 'activity', 'notifications', 'invites', 'mentions', 'tasks', 'mail'] },
       { label: 'Workspaces', href: '/dashboard/workspaces', icon: MessagesSquare, keywords: ['rooms', 'agents', 'collaboration'] },
       { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, keywords: ['home', 'overview'] },
       { label: 'Runs', href: '/dashboard/runs', icon: Activity, keywords: ['actions', 'history', 'log'] },
@@ -184,7 +184,7 @@ export function CommandPalette() {
         perform: () => {
           if (isDark) {
             delete document.documentElement.dataset.theme;
-            localStorage.removeItem('aegis_theme');
+            localStorage.setItem('aegis_theme', 'light');
           } else {
             document.documentElement.dataset.theme = 'dark';
             localStorage.setItem('aegis_theme', 'dark');

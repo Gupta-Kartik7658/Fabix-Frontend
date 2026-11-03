@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Eye, EyeOff, Loader2, MailCheck } from 'lucide-react';
 import AgentAvatar from '@/components/ui/AgentAvatar';
-import { AegisLogo } from '@/components/ui/AegisLogo';
+import { FabixLogo } from '@/components/ui/FabixLogo';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { fadeUp, staggerContainer } from '@/lib/motion';
@@ -634,7 +634,7 @@ function AuthFormPane({
               exit="hidden"
             >
               <motion.div variants={fadeUp}>
-                <AegisLogo
+                <FabixLogo
                   style={{ height: 22, width: 'auto', color: 'var(--neutral-strong-950)' }}
                 />
               </motion.div>

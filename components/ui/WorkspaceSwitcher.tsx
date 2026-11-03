@@ -30,6 +30,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  ChevronsUpDown,
   LogOut,
   Settings as SettingsIcon,
 } from 'lucide-react';
@@ -154,6 +155,7 @@ export function WorkspaceSwitcher() {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-label={`Account menu — ${activeTitle}`}
         title={activeTitle}
         className={cn(
           'flex w-full items-center gap-2.5 rounded-[8px] px-2 py-1.5 text-left',
@@ -175,7 +177,16 @@ export function WorkspaceSwitcher() {
           <p className="truncate text-[12.5px] font-semibold leading-tight text-[var(--neutral-strong-950)]">
             {footerName}
           </p>
+          <p className="mt-0.5 truncate text-[11px] leading-tight text-[var(--neutral-soft-400)]">
+            {demoOn ? 'Demo workspace' : userSubtitle}
+          </p>
         </div>
+        <ChevronsUpDown
+          data-sidebar-hide
+          aria-hidden
+          className="size-3.5 shrink-0 text-[var(--neutral-soft-400)]"
+          strokeWidth={2}
+        />
       </button>
 
       {/* Drop-up menu — anchored above the trigger. Sized at min 260px
@@ -188,7 +199,7 @@ export function WorkspaceSwitcher() {
           className={cn(
             'absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden',
             'min-w-[260px] rounded-[12px] border border-[var(--stroke-soft-200)] bg-[var(--white-0)]',
-            'shadow-[0_12px_32px_rgba(23,23,23,0.10),0_2px_6px_rgba(23,23,23,0.04)]',
+            'shadow-[0_12px_28px_rgba(0,0,0,0.38)]',
           )}
         >
           {/* Workspaces — no section header. Two rows with a hairline

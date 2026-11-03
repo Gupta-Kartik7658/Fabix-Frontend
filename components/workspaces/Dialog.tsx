@@ -23,6 +23,7 @@ export function Dialog({
   footer,
   width = 460,
   dismissable = true,
+  fullWidthOnMobile = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -32,6 +33,8 @@ export function Dialog({
   footer?: ReactNode;
   width?: number;
   dismissable?: boolean;
+  /** Below `sm`, dock the panel to the bottom edge at full width. */
+  fullWidthOnMobile?: boolean;
 }) {
   const reduce = useReducedMotion();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -72,7 +75,12 @@ export function Dialog({
             transition={{ duration: DUR.fast, ease: EASE.emph }}
             onClick={() => dismissable && onOpenChange(false)}
           />
-          <div className="fixed inset-0 z-[71] flex items-center justify-center px-4">
+          <div
+            className={cn(
+              'fixed inset-0 z-[71] flex justify-center',
+              fullWidthOnMobile ? 'items-end sm:items-center sm:px-4' : 'items-center px-4',
+            )}
+          >
             <motion.div
               ref={panelRef}
               role="dialog"
@@ -80,8 +88,11 @@ export function Dialog({
               aria-label={title}
               style={{ maxWidth: width }}
               className={cn(
-                'pointer-events-auto w-full rounded-[14px] border border-[var(--stroke-soft-200)]',
+                'pointer-events-auto w-full border border-[var(--stroke-soft-200)]',
                 'bg-[var(--white-0)] shadow-[0_24px_64px_rgba(0,0,0,0.18),0_4px_12px_rgba(0,0,0,0.08)]',
+                fullWidthOnMobile
+                  ? 'max-h-[92dvh] overflow-y-auto rounded-t-[14px] border-x-0 border-b-0 sm:max-h-[calc(100dvh-48px)] sm:rounded-[14px] sm:border'
+                  : 'rounded-[14px]',
               )}
               initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 8 }}
               animate={reduce ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}

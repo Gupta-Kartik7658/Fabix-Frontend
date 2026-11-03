@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Connectors",
-  description:
-    "Set up personal credentials for the tools your agents use. Connectors are per person, not per organisation.",
+  title: "Integrations",
+  description: "Connect the tools your agents work with.",
 };
 
 export default function ConnectorsLayout({

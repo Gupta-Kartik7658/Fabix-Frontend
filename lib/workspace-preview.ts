@@ -14,6 +14,8 @@
 import {
   ApiError,
   api,
+  type RunListResponse,
+  type RunRecord,
   type WorkspaceAgent,
   type WorkspaceAgentKeyResponse,
   type WorkspaceAgentStatus,
@@ -887,6 +889,52 @@ export function installWorkspacePreviewApi() {
     const found = store.runs.find((row) => row.id === runId);
     if (!found) throw new Error('Run not found');
     return wait(clone(found));
+  };
+
+  api.getRunsPage = async (opts = {}): Promise<RunListResponse> => {
+    const page = opts.page ?? 1;
+    const pageSize = opts.page_size ?? 20;
+    const offset = (page - 1) * pageSize;
+    const rows = store.runs
+      .filter((row) => !opts.workspace_id || row.workspace_id === opts.workspace_id)
+      .sort((a, b) => (b.timestamp ?? '').localeCompare(a.timestamp ?? ''))
+      .map((row) => toRunRecord(row));
+    return wait({
+      items: rows.slice(offset, offset + pageSize),
+      total: rows.length,
+      limit: pageSize,
+      offset,
+    });
+  };
+}
+
+function toRunRecord(row: WorkspaceRun): RunRecord {
+  const workspace = store.workspaces.find((item) => item.id === row.workspace_id);
+  const timestamp = row.timestamp ?? new Date().toISOString();
+  const [connector] = row.tool_name.split('.');
+  return {
+    id: row.id,
+    workspace_id: row.workspace_id ?? '',
+    workspace_name: workspace?.title ?? '',
+    workspace_title: workspace?.title ?? null,
+    user_id: DEMO_USER_ID,
+    agent_id: null,
+    agent_name: row.agent_handle ?? 'agent',
+    agent_handle: row.agent_handle ?? null,
+    connector_key: row.tool_name.includes('.') ? connector : null,
+    tool_name: row.tool_name,
+    arguments: (row.arguments as Record<string, unknown>) ?? {},
+    status: row.status === 'success' ? 'completed' : row.status,
+    result_summary: null,
+    result_payload: (row.result_payload as Record<string, unknown>) ?? {},
+    error_message: null,
+    started_at: timestamp,
+    completed_at: row.status === 'running' ? null : timestamp,
+    execution_time_ms: row.execution_time_ms ?? 0,
+    input_token: 0,
+    output_token: 0,
+    created_at: timestamp,
+    updated_at: null,
   };
 }
 

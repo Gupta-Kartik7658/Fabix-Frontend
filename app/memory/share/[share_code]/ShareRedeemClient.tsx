@@ -18,7 +18,7 @@ import {
   storePostAuthRedirect,
 } from '@/lib/authRedirect';
 import { installPreviewApi } from '@/lib/preview-data';
-import { AegisLogo } from '@/components/ui/AegisLogo';
+import { FabixLogo } from '@/components/ui/FabixLogo';
 import { Button } from '@/components/ui/Button';
 import { fadeUp, staggerContainer } from '@/lib/motion';
 
@@ -190,8 +190,8 @@ export function ShareRedeemClient({ shareCode }: { shareCode: string }) {
   return (
     <div className="flex min-h-screen flex-col bg-[var(--bg-app)]">
       <header className="flex items-center justify-between px-5 py-4">
-        <Link href="/" aria-label="Aegis home">
-          <AegisLogo className="h-7 text-[var(--neutral-strong-950)]" />
+        <Link href="/" aria-label="Fabix home">
+          <FabixLogo className="h-7 text-[var(--neutral-strong-950)]" />
         </Link>
         <Link
           href="/dashboard/memory"

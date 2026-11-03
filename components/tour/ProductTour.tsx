@@ -14,7 +14,7 @@ import { driver, type Driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
 import './driver-theme.css';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { AegisLogo } from '@/components/ui/AegisLogo';
+import { FabixLogo } from '@/components/ui/FabixLogo';
 import { Button } from '@/components/ui/Button';
 import {
   PRODUCT_TOUR_RESUME_KEY,
@@ -317,7 +317,7 @@ function TourInvite({
         >
           <div className="px-7 pt-7">
             <div className="mb-6 flex items-center gap-2.5 text-[var(--neutral-strong-950)]">
-              <AegisLogo style={{ height: 20, width: 'auto' }} />
+              <FabixLogo style={{ height: 20, width: 'auto' }} />
             </div>
             <h2
               id="product-tour-invite-title"

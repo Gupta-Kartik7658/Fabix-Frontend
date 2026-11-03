@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUp, Paperclip, X } from 'lucide-react';
+import { ArrowUp, AtSign, Paperclip, X } from 'lucide-react';
 import type { WorkspaceAgent, WorkspaceFileRef, WorkspacePerson } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
@@ -262,7 +262,7 @@ export function Composer({
   const agentMatches = matches.filter((item) => item.kind === 'agent');
 
   return (
-    <div className="relative border-t border-[var(--stroke-soft-200)] bg-[var(--bg-surface)] px-4 py-3">
+    <div className="relative w-full max-w-[960px] px-4 pb-3 pt-2 sm:px-6">
       {mention && matches.length > 0 && (
         <div
           role="listbox"
@@ -326,9 +326,8 @@ export function Composer({
       <div
         data-input-shell
         className={cn(
-          'rounded-xl border bg-[var(--bg-surface)] transition-colors',
-          'border-[var(--stroke-soft-200)] focus-within:border-[var(--primary-base)]',
-          'focus-within:ring-2 focus-within:ring-[var(--primary-alpha-16)]',
+          'rounded-[12px] border bg-[var(--bg-surface)] transition-colors',
+          'border-[var(--stroke-soft-200)] focus-within:border-[var(--stroke-sub-300)]',
         )}
       >
         {files.length > 0 && (
@@ -365,27 +364,34 @@ export function Composer({
           }}
           onKeyDown={onKeyDown}
           onBlur={() => setTimeout(() => setMention(null), 120)}
-          className="block h-9 w-full resize-none overflow-y-auto !border-0 !bg-transparent px-3 py-2 text-[13px] leading-[1.4] text-[var(--neutral-strong-950)] placeholder:text-[var(--neutral-soft-400)] focus:outline-none focus:ring-0 focus-visible:shadow-none [appearance:none] [-webkit-appearance:none]"
-          style={{ border: 'none', boxShadow: 'none', background: 'transparent' }}
+          className="block h-10 w-full resize-none overflow-y-auto !border-0 !bg-transparent px-3.5 pb-1 pt-2.5 text-[13.5px] leading-[1.5] text-[var(--neutral-strong-950)] placeholder:text-[var(--neutral-soft-400)] focus:outline-none focus:ring-0 focus-visible:shadow-none [appearance:none] [-webkit-appearance:none]"
+          style={{ border: 'none', boxShadow: 'none', background: 'transparent', color: 'var(--neutral-strong-950)', WebkitTextFillColor: 'var(--neutral-strong-950)' }}
         />
 
-        <div className="flex items-center gap-3 px-3 pb-2 pt-0.5">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={insertMentionTrigger}
-              className="text-[12px] text-[var(--neutral-sub-600)] underline-offset-2 hover:text-[var(--neutral-strong-950)] hover:underline focus-visible:shadow-none"
-            >
-              @mention
-            </button>
-            <button
-              type="button"
-              onClick={attachDemoFile}
-              className="text-[12px] text-[var(--neutral-sub-600)] underline-offset-2 hover:text-[var(--neutral-strong-950)] hover:underline focus-visible:shadow-none"
-            >
-              Attach a file
-            </button>
-          </div>
+        <div className="flex items-center gap-1 px-2 pb-2 pt-0.5">
+          <button
+            type="button"
+            onClick={insertMentionTrigger}
+            aria-label="Mention a person or agent"
+            title="Mention a person or agent"
+            className="flex size-8 items-center justify-center rounded-[7px] text-[var(--neutral-sub-600)] transition-colors hover:bg-[var(--neutral-weak-50)] hover:text-[var(--neutral-strong-950)] focus-visible:shadow-none"
+          >
+            <AtSign size={15} />
+          </button>
+          <button
+            type="button"
+            onClick={attachDemoFile}
+            aria-label="Attach a file"
+            title="Attach a file"
+            className="flex size-8 items-center justify-center rounded-[7px] text-[var(--neutral-sub-600)] transition-colors hover:bg-[var(--neutral-weak-50)] hover:text-[var(--neutral-strong-950)] focus-visible:shadow-none"
+          >
+            <Paperclip size={15} />
+          </button>
+          <span className="ml-1 hidden min-w-0 truncate text-[11.5px] text-[var(--neutral-soft-400)] sm:inline">
+            Posting as <span className="font-mono text-[var(--neutral-sub-600)]">@{sender.handle}</span>
+            <span aria-hidden> · </span>
+            Enter to send, Shift+Enter for a new line
+          </span>
           <Button
             type="button"
             variant="primary"
