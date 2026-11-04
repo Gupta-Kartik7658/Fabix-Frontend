@@ -39,6 +39,7 @@ export function WorkspaceSettingsPanel({
     <div className="h-full overflow-y-auto px-4 py-5 sm:px-6">
       <div className="flex max-w-[820px] flex-col gap-4">
         <Section
+          tourId="ws-settings-info"
           title="Workspace information"
           description="Shown on the workspace card and at the top of every tab."
           action={
@@ -75,6 +76,7 @@ export function WorkspaceSettingsPanel({
         </Section>
 
         <Section
+          tourId="ws-settings-agents-md"
           title="AGENTS.md"
           description={`Paste this into ${WORKSPACE_AGENTS_MD_FILENAME} at your project root so agents follow the workspace loop every session.`}
           action={
@@ -91,7 +93,7 @@ export function WorkspaceSettingsPanel({
           </pre>
         </Section>
 
-        <Section title="Keyboard shortcuts" description="Single-key actions work whenever you are not typing in a field.">
+        <Section tourId="ws-settings-shortcuts" title="Keyboard shortcuts" description="Single-key actions work whenever you are not typing in a field.">
           <div className="grid gap-x-8 px-4 py-2 sm:grid-cols-2">
             {SHORTCUTS.flatMap((group) => group.items).map((item) => (
               <div key={item.label} className="flex items-center justify-between gap-4 py-1.5 text-[12.5px] text-[var(--neutral-sub-600)]">
@@ -173,18 +175,20 @@ export function WorkspaceSettingsPanel({
 }
 
 function Section({
+  tourId,
   title,
   description,
   action,
   children,
 }: {
+  tourId?: string;
   title: string;
   description?: string;
   action?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-[12px] border border-[var(--stroke-soft-200)] bg-[var(--bg-surface)]">
+    <section data-tour={tourId} className="overflow-hidden rounded-[12px] border border-[var(--stroke-soft-200)] bg-[var(--bg-surface)]">
       <header className="flex flex-wrap items-start gap-3 border-b border-[var(--stroke-soft-200)] px-4 py-3">
         <div className="min-w-0 flex-1">
           <h3 className="text-[13.5px] font-semibold text-[var(--neutral-strong-950)]">{title}</h3>

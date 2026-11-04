@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Bot,
   ChevronDown,
+  CircleHelp,
   Link2,
   ListChecks,
   MessagesSquare,
@@ -54,6 +55,8 @@ import { ShortcutsDialog, useWorkspaceShortcuts } from './shortcuts';
 import { WorkspaceAgentsMdDialog } from './WorkspaceAgentsMdDialog';
 import { InviteWorkspaceDialog } from './InviteWorkspaceDialog';
 import { WorkspaceRunsPanel } from './WorkspaceRunsPanel';
+import { WorkspaceOnboardingProvider } from '@/components/guided-tour/WorkspaceOnboardingProvider';
+import { requestGuidedTour } from '@/lib/guided-tour';
 
 type Tab = 'conversation' | 'agents' | 'tasks' | 'runs' | 'settings' | 'files';
 
@@ -430,14 +433,23 @@ export function WorkspaceRoom({ workspaceId }: { workspaceId: string }) {
             <span className="hidden sm:contents">
               <SampleDataChip />
             </span>
+            <button
+              type="button"
+              onClick={() => requestGuidedTour()}
+              aria-label="Guided tour of this section"
+              title="Guided tour of this section"
+              className="flex size-8 items-center justify-center rounded-[8px] text-[var(--neutral-sub-600)] outline-none transition-colors hover:bg-[var(--neutral-weak-50)] hover:text-[var(--neutral-strong-950)] focus-visible:ring-2 focus-visible:ring-[var(--primary-alpha-24)]"
+            >
+              <CircleHelp size={16} />
+            </button>
             <UserMenu />
           </div>
         </div>
 
-        <header className="shrink-0 px-4 pt-5 sm:px-6">
+        <header data-tour="ws-header" className="shrink-0 px-4 pt-5 sm:px-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:gap-6">
             <div className="min-w-0 flex-1">
-              <h1 className="text-[22px] font-semibold leading-[1.3] tracking-[-0.022em] text-[var(--neutral-strong-950)]">
+              <h1 data-tour="ws-title" className="text-[22px] font-semibold leading-[1.3] tracking-[-0.022em] text-[var(--neutral-strong-950)]">
                 <InlineEdit
                   value={workspace.title}
                   ariaLabel="Workspace name"
@@ -448,7 +460,7 @@ export function WorkspaceRoom({ workspaceId }: { workspaceId: string }) {
                   editSignal={titleEdit}
                 />
               </h1>
-              <div className="mt-1 max-w-[88ch] text-[13.5px] leading-[1.6] text-[var(--neutral-sub-600)]">
+              <div data-tour="ws-goal" className="mt-1 max-w-[88ch] text-[13.5px] leading-[1.6] text-[var(--neutral-sub-600)]">
                 <InlineEdit
                   value={workspace.task ?? ''}
                   ariaLabel="Workspace goal"
@@ -485,7 +497,7 @@ export function WorkspaceRoom({ workspaceId }: { workspaceId: string }) {
             </div>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[12.5px] text-[var(--neutral-sub-600)]">
+          <div data-tour="ws-stats" className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[12.5px] text-[var(--neutral-sub-600)]">
             <button
               type="button"
               onClick={() => setTab('agents')}
@@ -529,6 +541,7 @@ export function WorkspaceRoom({ workspaceId }: { workspaceId: string }) {
         </header>
 
         <nav
+          data-tour="ws-sections"
           aria-label="Workspace sections"
           className="mt-3 flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[var(--stroke-soft-200)] px-2 [scrollbar-width:none] sm:px-4"
         >
@@ -593,7 +606,7 @@ export function WorkspaceRoom({ workspaceId }: { workspaceId: string }) {
                   setTab('runs');
                 }}
               />
-              <div className="shrink-0 border-t border-[var(--stroke-soft-200)] bg-[var(--bg-app)]">
+              <div data-tour="ws-composer" className="shrink-0 border-t border-[var(--stroke-soft-200)] bg-[var(--bg-app)]">
                 <Composer
                   agents={agents}
                   people={people}
@@ -662,6 +675,7 @@ export function WorkspaceRoom({ workspaceId }: { workspaceId: string }) {
           )}
         </div>
 
+        <WorkspaceOnboardingProvider workspaceId={workspaceId} section={tab} ready={Boolean(detail)} />
         <AgentKeyDialog open={!!issued} onOpenChange={(open) => !open && setIssued(null)} issued={issued} />
         <WorkspaceAgentsMdDialog open={agentsMdOpen} onOpenChange={setAgentsMdOpen} />
         <ShortcutsDialog open={helpOpen} onOpenChange={setHelpOpen} />

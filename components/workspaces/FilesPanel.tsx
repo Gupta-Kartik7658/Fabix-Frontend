@@ -83,7 +83,7 @@ export function FilesPanel({
 
   if (files.length === 0) {
     return (
-      <div className="flex h-full flex-col items-center justify-center">
+      <div data-tour="ws-files-list" className="flex h-full flex-col items-center justify-center">
         <PanelEmpty
           icon={Paperclip}
           title="No files yet"
@@ -111,6 +111,7 @@ export function FilesPanel({
           </div>
           <label
             data-input-shell
+            data-tour="ws-files-search"
             className="flex h-8 w-full items-center gap-2 rounded-[8px] border border-[var(--stroke-soft-200)] bg-[var(--bg-surface)] px-2.5 sm:w-[240px]"
           >
             <Search size={14} className="shrink-0 text-[var(--neutral-soft-400)]" />
@@ -126,7 +127,7 @@ export function FilesPanel({
           </label>
         </div>
 
-        <div className="overflow-hidden rounded-[12px] border border-[var(--stroke-soft-200)] bg-[var(--bg-surface)]">
+        <div data-tour="ws-files-list" className="overflow-hidden rounded-[12px] border border-[var(--stroke-soft-200)] bg-[var(--bg-surface)]">
           <div
             className={cn(
               'hidden border-b border-[var(--stroke-soft-200)] px-4 py-2 text-[11px] font-medium uppercase tracking-[0.05em] text-[var(--neutral-soft-400)]',

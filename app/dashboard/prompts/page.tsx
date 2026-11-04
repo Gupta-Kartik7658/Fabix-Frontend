@@ -13,6 +13,7 @@ import {
   AlertCircle,
   ArrowLeft,
   Check,
+  CircleHelp,
   Copy,
   CopyPlus,
   Loader2,
@@ -38,6 +39,7 @@ import { RelativeTime } from '@/components/ui/RelativeTime';
 import { useToast } from '@/components/ui/Toast';
 import { Dialog } from '@/components/workspaces/Dialog';
 import { api } from '@/lib/api';
+import { requestGuidedTour } from '@/lib/guided-tour';
 import { useAutoRefresh, useUser } from '@/lib/hooks';
 import type { UserPrompt } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -418,15 +420,24 @@ export default function PromptsPage() {
         style={PROMPT_THEME}
         className="flex h-[calc(100dvh-48px-56px)] flex-col lg:h-[calc(100dvh-56px)]"
       >
-        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-[var(--ps-border)] px-4 py-4 sm:px-6">
+        <header data-tour="prompt-header" className="flex shrink-0 items-center justify-between gap-4 border-b border-[var(--ps-border)] px-4 py-4 sm:px-6">
           <div className="min-w-0">
-            <div className="flex items-baseline gap-2.5">
+            <div data-tour="prompt-title" className="flex items-baseline gap-2.5">
               <h1 className="text-[22px] font-semibold leading-[1.2] tracking-[-0.025em] text-[var(--ps-text)]">
                 Prompt Studio
               </h1>
               <span className="text-[12.5px] tabular-nums text-[var(--ps-muted)]">
                 {loading ? '' : `${prompts.length} ${prompts.length === 1 ? 'prompt' : 'prompts'}`}
               </span>
+              <button
+                type="button"
+                onClick={() => requestGuidedTour('prompt-studio')}
+                aria-label="Guided tour of Prompt Studio"
+                title="Guided tour"
+                className="flex size-6 items-center justify-center self-center rounded-full text-[var(--ps-muted)] transition-colors duration-150 hover:text-[var(--ps-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(57,185,130,0.55)]"
+              >
+                <CircleHelp size={15} />
+              </button>
             </div>
             <p className="mt-1 hidden truncate text-[13px] text-[var(--ps-text-2)] sm:block">
               Create, manage and reuse instructions across your agents.
@@ -460,7 +471,7 @@ export default function PromptsPage() {
         )}
 
         <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[248px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)]">
-          <div className={cn('min-h-0', mobileView === 'editor' ? 'hidden md:block' : 'block')}>
+          <div data-tour="prompt-explorer" className={cn('min-h-0', mobileView === 'editor' ? 'hidden md:block' : 'block')}>
             <PromptExplorer
               prompts={prompts}
               variableCounts={variableCounts}
@@ -481,6 +492,7 @@ export default function PromptsPage() {
 
           <section
             aria-label="Prompt editor"
+            data-tour={showEditor && !loading ? 'prompt-editor' : undefined}
             className={cn(
               'min-h-0 flex-col overflow-hidden px-4 pb-4 pt-4 sm:px-6 sm:pb-5',
               mobileView === 'list' ? 'hidden md:flex' : 'flex',
@@ -508,6 +520,7 @@ export default function PromptsPage() {
                         onChange={(event) => patchForm({ name: event.target.value })}
                         placeholder="Untitled prompt"
                         aria-label="Prompt name"
+                        data-tour="prompt-name"
                         aria-invalid={attempted && nameMissing}
                         style={{ background: 'transparent', border: 0, boxShadow: 'none' }}
                         className={cn(
@@ -521,11 +534,12 @@ export default function PromptsPage() {
                         onChange={(event) => patchForm({ description: event.target.value })}
                         placeholder="Add a short description — when should an agent use this prompt?"
                         aria-label="Prompt description"
+                        data-tour="prompt-description"
                         style={{ background: 'transparent', border: 0, boxShadow: 'none' }}
                         className="-mx-1.5 mt-0.5 w-[calc(100%+12px)] rounded-[6px] px-1.5 py-0.5 text-[13px] leading-[1.5] text-[var(--ps-text-2)] outline-none transition-colors duration-150 placeholder:text-[var(--ps-muted)] hover:bg-[rgba(240,243,241,0.03)] focus:bg-[var(--ps-input)]"
                       />
                     </div>
-                    <div data-editor-menu className="relative shrink-0 pt-0.5">
+                    <div data-editor-menu data-tour="prompt-more" className="relative shrink-0 pt-0.5">
                       <button
                         type="button"
                         aria-label="More prompt actions"
@@ -614,6 +628,7 @@ export default function PromptsPage() {
                         <button
                           type="button"
                           onClick={() => void handleSave()}
+                          data-tour="prompt-save"
                           disabled={!dirty || saving}
                           title="Save (Ctrl+S)"
                           className="inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-[6px] bg-[var(--ps-green)] px-2.5 text-[12px] font-semibold text-white transition-colors duration-150 hover:bg-[#1A9660] disabled:cursor-not-allowed disabled:bg-[var(--ps-raised)] disabled:text-[var(--ps-muted)]"

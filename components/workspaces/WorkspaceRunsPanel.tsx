@@ -190,7 +190,7 @@ export function WorkspaceRunsPanel({
 
   return (
     <div className="flex min-h-full flex-col">
-      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-[var(--stroke-soft-200)] bg-[var(--bg-app)] px-4 py-2.5 sm:px-6">
+      <div data-tour="ws-runs-filters" className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-[var(--stroke-soft-200)] bg-[var(--bg-app)] px-4 py-2.5 sm:px-6">
         <label
           data-input-shell
           className="flex h-8 w-full items-center gap-2 rounded-[8px] border border-[var(--stroke-soft-200)] bg-[var(--bg-surface)] px-2.5 sm:w-[240px]"
@@ -277,7 +277,7 @@ export function WorkspaceRunsPanel({
           </Button>
         </div>
       ) : (
-        <ul>
+        <ul data-tour="ws-runs-list">
           {visible.map((run) => {
             const open = openId === run.id;
             const detail = details[run.id] ?? run;
@@ -286,7 +286,7 @@ export function WorkspaceRunsPanel({
             const errorText = runError(detail);
             const handle = run.agent_handle?.replace(/^@/, '');
             return (
-              <li key={run.id} className="border-b border-[var(--stroke-soft-200)]">
+              <li key={run.id} data-tour="ws-run-row" className="border-b border-[var(--stroke-soft-200)]">
                 <button
                   type="button"
                   onClick={() => void openRun(run.id)}
@@ -304,16 +304,16 @@ export function WorkspaceRunsPanel({
                     )}
                   />
                   <span className={cn('min-w-0 flex-1', ROW_GRID)}>
-                    <span className="block truncate font-mono text-[12.5px] font-medium text-[var(--neutral-strong-950)]">
+                    <span data-tour="ws-run-tool" className="block truncate font-mono text-[12.5px] font-medium text-[var(--neutral-strong-950)]">
                       {run.tool_name}
                     </span>
                     <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-[var(--neutral-sub-600)] md:contents">
-                      <span className="truncate font-mono md:block">{handle ? `@${handle}` : 'Unknown agent'}</span>
-                      <span className={cn('inline-flex items-center gap-1.5 text-[12px] font-medium capitalize', style.text)}>
+                      <span data-tour="ws-run-agent" className="truncate font-mono md:block">{handle ? `@${handle}` : 'Unknown agent'}</span>
+                      <span data-tour="ws-run-status" className={cn('inline-flex items-center gap-1.5 text-[12px] font-medium capitalize', style.text)}>
                         <span className={cn('size-1.5 shrink-0 rounded-full', style.dot)} />
                         {run.status}
                       </span>
-                      <span className="tabular-nums md:text-right">
+                      <span data-tour="ws-run-duration" className="tabular-nums md:text-right">
                         {run.execution_time_ms != null ? formatExecutionTimeMs(run.execution_time_ms) : '—'}
                       </span>
                       <span

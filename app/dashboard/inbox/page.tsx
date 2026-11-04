@@ -15,7 +15,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Activity, Boxes, CheckCheck, Coins, MessagesSquare, Settings2 } from 'lucide-react';
+import { Activity, Boxes, CheckCheck, CircleHelp, Coins, MessagesSquare, Settings2 } from 'lucide-react';
+import { requestGuidedTour } from '@/lib/guided-tour';
 import Topbar from '@/components/layout/Topbar';
 import { useToast } from '@/components/ui/Toast';
 import { WorkspaceDemoGate } from '@/components/workspaces/WorkspaceDemoGate';
@@ -292,6 +293,14 @@ function ActivityCenter() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => requestGuidedTour('activity-center')}
+              className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[var(--ac-card)] px-3 text-[12.5px] font-medium text-[var(--ac-text-2)] ring-1 ring-inset ring-[var(--ac-border)] transition-colors duration-150 hover:bg-[var(--ac-elevated)] hover:text-[var(--ac-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(0,184,121,0.45)]"
+            >
+              <CircleHelp size={14} />
+              Guided tour
+            </button>
             <Link
               href="/dashboard/settings#profile"
               className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[var(--ac-card)] px-3 text-[12.5px] font-medium text-[var(--ac-text-2)] ring-1 ring-inset ring-[var(--ac-border)] transition-colors duration-150 hover:bg-[var(--ac-elevated)] hover:text-[var(--ac-text)]"
@@ -311,10 +320,15 @@ function ActivityCenter() {
           </div>
         </header>
 
-        <section aria-label="Overview" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section
+          aria-label="Overview"
+          data-tour="activity-stats"
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+        >
           <MetricCard
             label="Workspaces"
             href="/dashboard/workspaces"
+            tourId="activity-stat-workspaces"
             icon={<MessagesSquare size={16} />}
             loading={workspaces === null}
             value={workspaces && !workspacesError ? workspaces.length.toLocaleString() : '—'}
@@ -327,6 +341,7 @@ function ActivityCenter() {
           <MetricCard
             label="Total executions"
             href="/dashboard/runs"
+            tourId="activity-stat-executions"
             icon={<Activity size={16} />}
             loading={runs === null && !runsError}
             value={runTotal === null ? '—' : runTotal.toLocaleString()}
@@ -335,6 +350,7 @@ function ActivityCenter() {
           <MetricCard
             label="Connected connectors"
             href="/dashboard/connectors"
+            tourId="activity-stat-connectors"
             icon={<Boxes size={16} />}
             loading={connectors === null && !connectorsError}
             value={connectedCount === null || connectorsError ? '—' : connectedCount.toLocaleString()}
@@ -349,6 +365,7 @@ function ActivityCenter() {
           <MetricCard
             label="Token consumption"
             href="/dashboard/token-spenditure"
+            tourId="activity-stat-tokens"
             icon={<Coins size={16} />}
             loading={usage === null && !usageError}
             value={usage ? finiteNumber(usage.summary.total_tokens).toLocaleString() : '—'}
@@ -370,7 +387,11 @@ function ActivityCenter() {
           onLoadMore={() => void loadMore()}
         />
 
-        <section aria-label="Supporting panels" className="grid grid-cols-1 gap-4 pt-2 lg:grid-cols-3">
+        <section
+          aria-label="Supporting panels"
+          data-tour="activity-operational-panels"
+          className="grid grid-cols-1 gap-4 pt-2 lg:grid-cols-3"
+        >
           <ExecutionsPanel runs={runs} total={runTotal} error={runsError} onRetry={() => void loadInsights()} />
           <ConnectorHealthPanel connectors={connectors} error={connectorsError} onRetry={() => void loadInsights()} />
           <UsagePanel usage={usage} error={usageError} onRetry={() => void loadInsights()} />

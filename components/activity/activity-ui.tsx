@@ -85,6 +85,7 @@ export function MetricCard({
   href,
   loading,
   icon,
+  tourId,
 }: {
   label: string;
   value: string;
@@ -92,10 +93,12 @@ export function MetricCard({
   href: string;
   loading: boolean;
   icon: ReactNode;
+  tourId?: string;
 }) {
   return (
     <Link
       href={href}
+      data-tour={tourId}
       className="group relative flex h-[112px] flex-col justify-between rounded-[12px] border border-[var(--ac-border)] bg-[var(--ac-card)] p-5 transition-colors duration-200 hover:bg-[var(--ac-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(0,184,121,0.45)]"
     >
       <div className="flex items-start justify-between gap-3">
@@ -131,6 +134,7 @@ export function Panel({
   onRetry,
   loading,
   children,
+  tourId,
 }: {
   title: string;
   href: string;
@@ -139,9 +143,13 @@ export function Panel({
   onRetry: () => void;
   loading: boolean;
   children: ReactNode;
+  tourId?: string;
 }) {
   return (
-    <section className="flex flex-col rounded-[12px] border border-[var(--ac-border)] bg-[var(--ac-card)]">
+    <section
+      data-tour={tourId}
+      className="flex flex-col rounded-[12px] border border-[var(--ac-border)] bg-[var(--ac-card)]"
+    >
       <header className="flex items-center justify-between gap-3 px-5 pb-3 pt-4">
         <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-[var(--ac-text)]">{title}</h2>
         <Link

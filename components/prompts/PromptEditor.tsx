@@ -157,7 +157,7 @@ export function PromptEditor({
         invalid ? 'border-[rgba(228,119,119,0.5)]' : 'border-[var(--ps-border)] focus-within:border-[rgba(57,185,130,0.55)]',
       )}
     >
-      <div className="flex h-10 shrink-0 items-center gap-1 border-b border-[var(--ps-border)] bg-[var(--ps-surface)] px-2">
+      <div data-tour="prompt-toolbar" className="flex h-10 shrink-0 items-center gap-1 border-b border-[var(--ps-border)] bg-[var(--ps-surface)] px-2">
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none]">
         {FORMAT_GROUPS.map((group, index) => (
           <div key={index} className="flex shrink-0 items-center gap-0.5">
@@ -194,7 +194,7 @@ export function PromptEditor({
         </div>
       </div>
 
-      <div ref={scrollerRef} className="relative min-h-0 flex-1 overflow-auto">
+      <div ref={scrollerRef} data-tour="prompt-body" className="relative min-h-0 flex-1 overflow-auto">
         <div className={cn('relative min-h-full py-3', !wrap && 'w-max min-w-full')}>
           <div ref={overlayRef} aria-hidden className="pointer-events-none select-none">
             {lines.map((tokens, index) => {
@@ -284,6 +284,7 @@ function TokenSpan({ token, active }: { token: Token; active: boolean }) {
   if (token.kind === 'variable') {
     return (
       <span
+        data-tour="prompt-variable-token"
         className={cn(
           'rounded-[3px] text-[var(--ps-blue)] transition-colors duration-150',
           active

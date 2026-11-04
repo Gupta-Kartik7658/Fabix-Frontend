@@ -98,7 +98,7 @@ export function AgentChat({
 
   if (messages.length === 0) {
     return (
-      <div className="flex flex-1 items-center justify-center px-6 py-10">
+      <div data-tour="ws-conversation-feed" className="flex flex-1 items-center justify-center px-6 py-10">
         <div className="max-w-[380px] text-center">
           <span className="mx-auto mb-3 flex size-10 items-center justify-center rounded-xl border border-[var(--stroke-soft-200)] bg-[var(--bg-surface)] text-[var(--neutral-sub-600)]">
             <MessagesSquare size={18} />
@@ -120,7 +120,7 @@ export function AgentChat({
     message.pinged_you === true || mentionsYou(message);
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div data-tour="ws-conversation-feed" className="flex-1 overflow-y-auto">
       <div className="w-full max-w-[960px] px-1 py-3 sm:px-3">
         {messages.map((message, index) => {
           const previous = index > 0 ? messages[index - 1] : null;
@@ -161,6 +161,7 @@ export function AgentChat({
                 attention={attention}
                 isYou={isYou}
                 continued={continued}
+                anchored={index === messages.length - 1}
                 focused={focusMessageId === message.id}
                 onCreateTask={onCreateTask}
                 onViewRuns={onViewRuns}
@@ -183,6 +184,7 @@ function MessageRow({
   attention,
   isYou,
   continued,
+  anchored,
   focused,
   onCreateTask,
   onViewRuns,
@@ -195,6 +197,8 @@ function MessageRow({
   attention: boolean;
   isYou: boolean;
   continued: boolean;
+  /** The message onboarding points at; the newest one, since the feed opens at the bottom. */
+  anchored: boolean;
   focused: boolean;
   onCreateTask?: (message: WorkspaceMessage) => void;
   onViewRuns?: (handle: string) => void;
@@ -215,6 +219,7 @@ function MessageRow({
   return (
     <div
       id={`workspace-msg-${message.id}`}
+      data-tour={anchored ? 'ws-message' : undefined}
       className={cn(
         'group relative flex gap-3 rounded-[10px] px-3 transition-colors',
         continued ? 'py-0.5' : 'mt-1 pb-1.5 pt-2.5',

@@ -9,6 +9,7 @@ import { AppShellSkeleton } from '@/components/ui/PageSkeletons';
 import { CommandPalette } from '@/components/ui/CommandPalette';
 import { DemoWelcomeModal } from '@/components/ui/DemoWelcomeModal';
 import { ProductTour } from '@/components/tour/ProductTour';
+import { GuidedTourProvider } from '@/components/guided-tour/GuidedTourProvider';
 import { installPreviewApi } from '@/lib/preview-data';
 import { installWorkspacePreviewApi } from '@/lib/workspace-preview';
 import { DashboardDataProvider } from '@/lib/dashboardDataContext';
@@ -177,6 +178,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <DashboardDataProvider>
+      <GuidedTourProvider suspended={showWelcome}>
       <Layout>{children}</Layout>
       {/* First-visit welcome — only renders when localStorage.aegis_demo
           is null. After the user picks, the flag is persisted and the
@@ -192,6 +194,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           route under /dashboard. */}
       <CommandPalette />
       <ProductTour welcomeOpen={showWelcome} />
+      </GuidedTourProvider>
     </DashboardDataProvider>
   );
 }

@@ -1,6 +1,7 @@
 export const PRODUCT_TOUR_STORAGE_KEY = 'aegis_product_tour';
 export const PRODUCT_TOUR_RESUME_KEY = 'aegis_product_tour_resume';
 export const PRODUCT_TOUR_START_EVENT = 'aegis:product-tour-start';
+export const PRODUCT_TOUR_STATUS_EVENT = 'aegis:product-tour-status';
 
 export type ProductTourStatus = 'pending' | 'skipped' | 'done';
 
@@ -38,6 +39,9 @@ export function setProductTourStatus(status: ProductTourStatus): void {
     localStorage.setItem(PRODUCT_TOUR_STORAGE_KEY, status);
   } catch {
     /* ignore */
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(PRODUCT_TOUR_STATUS_EVENT));
   }
 }
 

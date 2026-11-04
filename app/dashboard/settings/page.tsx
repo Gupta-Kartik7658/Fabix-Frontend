@@ -32,6 +32,7 @@ import {
 } from '@/lib/customAvatar';
 import { DUR, EASE, fadeUp, staggerContainer } from '@/lib/motion';
 import { requestProductTour } from '@/lib/productTour';
+import { requestGuidedTour } from '@/lib/guided-tour';
 
 // ── Settings tabs ─────────────────────────────────────────────────────────────
 // Keep this page intentionally small: these are the only settings subtabs.
@@ -427,16 +428,26 @@ function AccountSection({
       <motion.div variants={fadeUp}>
         <SettingsCard
           title="Product tour"
-          description="Replay the walkthrough of workspaces, agents, Memory, and Prompts whenever you need it."
+          description="Replay the walkthrough of workspaces, agents, Memory, and Prompts, or the Activity Center guided tour."
         >
-          <Button
-            variant="secondary"
-            size="md"
-            leadingIcon={<Map className="h-3.5 w-3.5" strokeWidth={2} />}
-            onClick={() => requestProductTour()}
-          >
-            Replay tour
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              size="md"
+              leadingIcon={<Map className="h-3.5 w-3.5" strokeWidth={2} />}
+              onClick={() => requestProductTour()}
+            >
+              Replay tour
+            </Button>
+            <Button
+              variant="secondary"
+              size="md"
+              leadingIcon={<Map className="h-3.5 w-3.5" strokeWidth={2} />}
+              onClick={() => requestGuidedTour('activity-center')}
+            >
+              Activity Center tour
+            </Button>
+          </div>
         </SettingsCard>
       </motion.div>
     </motion.div>

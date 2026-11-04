@@ -102,7 +102,7 @@ export function MemoryDetail({
             <ArrowLeft size={14} />
             Library
           </button>
-          <div className="ml-auto flex items-center gap-1">
+          <div data-tour="memory-detail-actions" className="ml-auto flex items-center gap-1">
             <DetailAction
               label={memory.is_pinned ? 'Unpin' : 'Pin'}
               onClick={onPin}

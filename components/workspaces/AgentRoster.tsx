@@ -210,13 +210,14 @@ export function AgentRoster({
               size="sm"
               leadingIcon={<Plus size={13} />}
               onClick={() => setInviting(true)}
+              data-tour="ws-agents-add"
             >
               Add agent
             </Button>
           </div>
 
           {ordered.length === 0 ? (
-            <div className="rounded-[12px] border border-[var(--stroke-soft-200)] bg-[var(--bg-surface)]">
+            <div data-tour="ws-agents-list" className="rounded-[12px] border border-[var(--stroke-soft-200)] bg-[var(--bg-surface)]">
               <PanelEmpty
                 icon={Bot}
                 title="No agents yet"
@@ -224,7 +225,7 @@ export function AgentRoster({
               />
             </div>
           ) : (
-            <div className="overflow-hidden rounded-[12px] border border-[var(--stroke-soft-200)] bg-[var(--bg-surface)]">
+            <div data-tour="ws-agents-list" className="overflow-hidden rounded-[12px] border border-[var(--stroke-soft-200)] bg-[var(--bg-surface)]">
               <div
                 className={cn(
                   'hidden border-b border-[var(--stroke-soft-200)] px-4 py-2 text-[11px] font-medium uppercase tracking-[0.05em] text-[var(--neutral-soft-400)]',
@@ -248,7 +249,7 @@ export function AgentRoster({
                       key={agent.id}
                       className={cn('flex flex-col gap-2 px-4 py-3 transition-colors hover:bg-[var(--neutral-weak-50)]/50', ROW_GRID)}
                     >
-                      <div className="flex min-w-0 items-center gap-3">
+                      <div data-tour="ws-agent-identity" className="flex min-w-0 items-center gap-3">
                         <AgentGlyph handle={agent.handle} roleLabel={agent.role_label} />
                         <div className="min-w-0">
                           <div className="flex min-w-0 items-center gap-2">
@@ -272,11 +273,12 @@ export function AgentRoster({
                       </div>
 
                       <div className="flex flex-wrap gap-x-4 gap-y-1 pl-11 text-[12px] text-[var(--neutral-sub-600)] md:contents">
-                        <span className="tabular-nums md:text-right md:text-[13px] md:text-[var(--neutral-strong-950)]">
+                        <span data-tour="ws-agent-runs" className="tabular-nums md:text-right md:text-[13px] md:text-[var(--neutral-strong-950)]">
                           {runs}
                           <span className="ml-1 text-[var(--neutral-soft-400)] md:hidden">runs</span>
                         </span>
                         <span
+                          data-tour="ws-agent-tokens"
                           className="tabular-nums md:text-right md:text-[13px] md:text-[var(--neutral-strong-950)]"
                           title={stats && rollup?.tokens == null ? 'Runs did not report token usage' : undefined}
                         >
@@ -288,7 +290,10 @@ export function AgentRoster({
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-1.5 pl-11 md:justify-end md:pl-0">
+                      <div
+                        data-tour={revoked ? undefined : 'ws-agent-actions'}
+                        className="flex items-center gap-1.5 pl-11 md:justify-end md:pl-0"
+                      >
                         {revoked ? (
                           <Button
                             variant="secondary"

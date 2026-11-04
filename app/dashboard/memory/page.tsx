@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import {
   AlignJustify,
   ChevronDown,
+  CircleHelp,
   Download,
   Info,
   LayoutList,
@@ -43,6 +44,7 @@ import {
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api';
+import { requestGuidedTour } from '@/lib/guided-tour';
 import { useUser } from '@/lib/hooks';
 import type { Memory } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -343,13 +345,22 @@ export default function MemoryPage() {
 
       <div style={MEMORY_THEME} className="min-h-[calc(100dvh-56px)]">
         <div className="mx-auto w-full max-w-[1600px] px-4 pb-8 pt-7 sm:px-6 lg:px-8">
-          <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <header data-tour="memory-header" className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="text-[30px] font-semibold leading-[1.15] tracking-[-0.03em] text-[var(--mm-text)]">
+                <h1 data-tour="memory-title" className="text-[30px] font-semibold leading-[1.15] tracking-[-0.03em] text-[var(--mm-text)]">
                   Memory
                 </h1>
                 <RulesTooltip />
+                <button
+                  type="button"
+                  onClick={() => requestGuidedTour('memory')}
+                  aria-label="Guided tour of Memory"
+                  title="Guided tour"
+                  className="flex size-6 items-center justify-center rounded-full text-[var(--mm-muted)] transition-colors duration-150 hover:text-[var(--mm-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(0,184,121,0.45)]"
+                >
+                  <CircleHelp size={15} />
+                </button>
               </div>
               <p className="mt-1.5 text-[14px] leading-[1.55] text-[var(--mm-text-2)]">
                 Your persistent knowledge, available across agent sessions.
@@ -359,6 +370,7 @@ export default function MemoryPage() {
               <button
                 type="button"
                 onClick={() => setRedeemOpen(true)}
+                data-tour="memory-redeem"
                 className="inline-flex h-9 items-center gap-1.5 rounded-[9px] bg-[var(--mm-panel)] px-3 text-[12.5px] font-medium text-[var(--mm-text-2)] ring-1 ring-inset ring-[var(--mm-border)] transition-colors duration-150 hover:bg-[var(--mm-elevated)] hover:text-[var(--mm-text)]"
               >
                 <Download size={14} />
@@ -376,8 +388,9 @@ export default function MemoryPage() {
             </div>
           </header>
 
-          <section aria-label="Summary" className="mt-6 grid grid-cols-3 gap-3 sm:gap-4">
+          <section data-tour="memory-stats" aria-label="Summary" className="mt-6 grid grid-cols-3 gap-3 sm:gap-4">
             <StatCard
+              tourId="memory-stat-total"
               label="Total memories"
               shortLabel="Total"
               icon={<BookOpen size={15} />}
@@ -386,6 +399,7 @@ export default function MemoryPage() {
               description={error && memories.length === 0 ? 'Could not load memories' : 'In your library'}
             />
             <StatCard
+              tourId="memory-stat-pinned"
               label="Pinned"
               shortLabel="Pinned"
               icon={<Pin size={15} />}
@@ -394,6 +408,7 @@ export default function MemoryPage() {
               description="Kept at the top of the library"
             />
             <StatCard
+              tourId="memory-stat-shared"
               label="Shared"
               shortLabel="Shared"
               icon={<Link2 size={15} />}
@@ -407,8 +422,8 @@ export default function MemoryPage() {
             />
           </section>
 
-          <div className="mt-6 flex flex-col gap-2.5 md:flex-row md:items-center">
-            <div data-input-shell className="flex h-9 min-w-0 items-center rounded-[9px] bg-[var(--mm-panel)] ring-1 ring-inset ring-[var(--mm-border)] transition-shadow duration-150 focus-within:ring-[rgba(0,184,121,0.55)] md:w-[340px]">
+          <div data-tour="memory-toolbar" className="mt-6 flex flex-col gap-2.5 md:flex-row md:items-center">
+            <div data-input-shell data-tour="memory-search" className="flex h-9 min-w-0 items-center rounded-[9px] bg-[var(--mm-panel)] ring-1 ring-inset ring-[var(--mm-border)] transition-shadow duration-150 focus-within:ring-[rgba(0,184,121,0.55)] md:w-[340px]">
               <Search size={14} className="ml-3 shrink-0 text-[var(--mm-muted)]" />
               <label htmlFor="memory-search" className="sr-only">
                 Search memories
@@ -449,6 +464,7 @@ export default function MemoryPage() {
               <div
                 role="radiogroup"
                 aria-label="Filter memories"
+                data-tour="memory-filters"
                 className="flex h-9 items-center rounded-[9px] bg-[var(--mm-panel)] p-0.5 ring-1 ring-inset ring-[var(--mm-border)]"
               >
                 {MEMORY_FILTERS.map((option) => {
@@ -480,7 +496,7 @@ export default function MemoryPage() {
                 })}
               </div>
 
-              <div className="relative">
+              <div data-tour="memory-sort" className="relative">
                 <label htmlFor="memory-sort" className="sr-only">
                   Sort memories
                 </label>
@@ -506,6 +522,7 @@ export default function MemoryPage() {
               <div
                 role="radiogroup"
                 aria-label="List density"
+                data-tour="memory-density"
                 className="hidden h-9 items-center rounded-[9px] bg-[var(--mm-panel)] p-0.5 ring-1 ring-inset ring-[var(--mm-border)] sm:flex"
               >
                 {(
@@ -554,8 +571,9 @@ export default function MemoryPage() {
 
           <div
             ref={panesRef}
+            data-tour="memory-panes"
             className="mt-4 grid scroll-mt-[120px] grid-cols-1 gap-5 lg:sticky lg:top-[72px] lg:h-[calc(100dvh-88px)] lg:min-h-[520px] lg:grid-cols-[minmax(320px,38fr)_62fr]">
-            <div className={cn('min-h-0 lg:block', selected ? 'hidden' : 'block')}>
+            <div data-tour="memory-library" className={cn('min-h-0 lg:block', selected ? 'hidden' : 'block')}>
               <MemoryExplorer
                 pinned={visiblePinned}
                 rest={visibleRest}
@@ -575,7 +593,7 @@ export default function MemoryPage() {
                 onClearFilters={clearFilters}
               />
             </div>
-            <div className={cn('min-h-0', selected ? 'block' : 'hidden lg:block')}>
+            <div data-tour="memory-detail" className={cn('min-h-0', selected ? 'block' : 'hidden lg:block')}>
               <MemoryDetail
                 memory={selected}
                 shareCount={selected ? shareCounts[selected.id] : undefined}
@@ -650,6 +668,7 @@ export default function MemoryPage() {
 }
 
 function StatCard({
+  tourId,
   label,
   shortLabel,
   icon,
@@ -657,6 +676,7 @@ function StatCard({
   description,
   loading,
 }: {
+  tourId?: string;
   label: string;
   shortLabel: string;
   icon: ReactNode;
@@ -665,7 +685,7 @@ function StatCard({
   loading: boolean;
 }) {
   return (
-    <div className="flex h-[84px] flex-col justify-between rounded-[12px] border border-[var(--mm-border)] bg-[var(--mm-panel)] px-3.5 py-3.5 sm:h-[100px] sm:px-5 sm:py-4">
+    <div data-tour={tourId} className="flex h-[84px] flex-col justify-between rounded-[12px] border border-[var(--mm-border)] bg-[var(--mm-panel)] px-3.5 py-3.5 sm:h-[100px] sm:px-5 sm:py-4">
       <div className="flex items-center justify-between gap-3">
         <p className="truncate text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--mm-muted)]">
           <span className="sm:hidden">{shortLabel}</span>

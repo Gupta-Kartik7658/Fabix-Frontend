@@ -33,6 +33,7 @@ import {
   Coins,
   ExternalLink,
   FileText,
+  CircleHelp,
   HelpCircle,
   Inbox,
   LayoutDashboard,
@@ -54,6 +55,7 @@ import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { useUser } from '@/lib/hooks';
 import { requestProductTour } from '@/lib/productTour';
+import { requestGuidedTour } from '@/lib/guided-tour';
 
 interface Command {
   id: string;
@@ -202,6 +204,18 @@ export function CommandPalette() {
         perform: () => {
           setOpen(false);
           requestProductTour();
+        },
+      },
+      {
+        id: 'activity-guided-tour',
+        label: 'Activity Center guided tour',
+        hint: 'Replay',
+        icon: CircleHelp,
+        keywords: ['tour', 'guide', 'activity', 'inbox', 'onboarding', 'help', 'walkthrough'],
+        group: 'Actions' as const,
+        perform: () => {
+          setOpen(false);
+          requestGuidedTour('activity-center');
         },
       },
       {

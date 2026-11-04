@@ -81,7 +81,7 @@ export function PromptExplorer({
       className="flex h-full min-h-0 flex-col border-[var(--ps-border)] bg-[var(--ps-sidebar)] md:border-r"
     >
       <div className="shrink-0 space-y-2 border-b border-[var(--ps-border)] p-3">
-        <div className="flex h-8 items-center rounded-[7px] border border-[var(--ps-border)] bg-[var(--ps-input)] transition-colors duration-150 focus-within:border-[rgba(57,185,130,0.55)]" data-input-shell>
+        <div className="flex h-8 items-center rounded-[7px] border border-[var(--ps-border)] bg-[var(--ps-input)] transition-colors duration-150 focus-within:border-[rgba(57,185,130,0.55)]" data-input-shell data-tour="prompt-search">
           <Search size={13} className="ml-2.5 shrink-0 text-[var(--ps-muted)]" />
           <label htmlFor="prompt-search" className="sr-only">
             Search prompts
@@ -123,7 +123,7 @@ export function PromptExplorer({
                 ? `${visible.length} of ${prompts.length} prompts`
                 : `${prompts.length} ${prompts.length === 1 ? 'prompt' : 'prompts'}`}
           </span>
-          <div className="relative">
+          <div data-tour="prompt-sort" className="relative">
             <label htmlFor="prompt-sort" className="sr-only">
               Sort prompts
             </label>
@@ -217,6 +217,7 @@ export function PromptExplorer({
                   role="option"
                   aria-selected={active}
                   data-prompt-id={prompt.id}
+                  data-tour="prompt-list-item"
                   className="group relative"
                   onContextMenu={(event) => {
                     event.preventDefault();

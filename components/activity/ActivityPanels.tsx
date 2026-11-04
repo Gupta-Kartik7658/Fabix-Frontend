@@ -39,6 +39,7 @@ export function ExecutionsPanel({
       error={error}
       onRetry={onRetry}
       loading={runs === null && !error}
+      tourId="activity-panel-runs"
     >
       {runs && runs.length === 0 && (
         <PanelEmpty
@@ -113,6 +114,7 @@ export function ConnectorHealthPanel({
       error={error}
       onRetry={onRetry}
       loading={connectors === null && !error}
+      tourId="activity-panel-connectors"
     >
       {connectors && connectors.length === 0 && (
         <PanelEmpty
@@ -187,6 +189,7 @@ export function UsagePanel({
       error={error}
       onRetry={onRetry}
       loading={usage === null && !error}
+      tourId="activity-panel-usage"
     >
       {usage && (
         <div>

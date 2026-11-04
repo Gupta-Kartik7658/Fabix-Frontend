@@ -14,16 +14,23 @@ export function ActivityRow({
   marking,
   onMarkRead,
   onCopied,
+  anchored = false,
 }: {
   item: ActivityItem;
   marking: boolean;
   onMarkRead: (id: string) => void;
   onCopied: () => void;
+  /** Marks the row the Activity Center tour may spotlight. */
+  anchored?: boolean;
 }) {
   const unread = item.isNew;
 
   return (
-    <li className="group relative">
+    <li
+      className="group relative"
+      data-tour={anchored ? 'activity-notification' : undefined}
+      data-tour-action={anchored ? item.primaryAction?.label : undefined}
+    >
       <div
         className={cn(
           'flex gap-3.5 px-4 py-4 transition-colors duration-150 hover:bg-[rgba(242,247,243,0.025)]',

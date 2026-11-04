@@ -451,6 +451,7 @@ export function TaskChecklist({
           size="sm"
           leadingIcon={<Plus size={13} />}
           onClick={() => openCompose(null)}
+          data-tour="ws-tasks-new"
         >
           New task pointer
         </Button>
@@ -486,7 +487,7 @@ export function TaskChecklist({
           hint="Break the goal into pointers the agents can pick up."
         />
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div data-tour="ws-tasks-board" className="flex min-h-0 flex-1 flex-col">
           {sharedItems.length > 0 && (
             <SharedBand
               items={sharedItems}
@@ -621,7 +622,7 @@ function SharedBand({
 }) {
   const { open, done } = splitDone(items);
   return (
-    <div className="border-b border-[var(--stroke-soft-200)] bg-[var(--bg-surface-alt)] px-4 py-2.5">
+    <div data-tour="ws-task-shared" className="border-b border-[var(--stroke-soft-200)] bg-[var(--bg-surface-alt)] px-4 py-2.5">
       <div className="mb-2 flex items-center gap-2">
         <span className="text-[10.5px] font-medium uppercase tracking-[0.05em] text-[var(--neutral-soft-400)]">
           Shared
@@ -702,7 +703,7 @@ function LaneColumn({
   const done = merged.filter((row) => row.item.pointer.status === 'done');
 
   return (
-    <section className="flex h-full min-h-0 w-[280px] shrink-0 flex-col rounded-[12px] bg-[var(--bg-surface-alt)]">
+    <section data-tour="ws-task-lane" className="flex h-full min-h-0 w-[280px] shrink-0 flex-col rounded-[12px] bg-[var(--bg-surface-alt)]">
       <header className="flex items-center gap-2 px-2.5 py-2">
         {agent ? (
           <span
@@ -728,6 +729,7 @@ function LaneColumn({
         <button
           type="button"
           aria-label={`Add task in ${title}`}
+          data-tour="ws-task-assign"
           onClick={onCompose}
           className="rounded-md p-1 text-[var(--neutral-soft-400)] hover:bg-[var(--neutral-weak-50)] hover:text-[var(--neutral-strong-950)]"
         >
@@ -889,6 +891,7 @@ function TaskCard({
   return (
     <article
       id={cardDomId(pointer.id)}
+      data-tour="ws-task-card"
       tabIndex={0}
       aria-label={`Open ${pointer.title}`}
       onClick={() => onOpen(pointer.id)}
@@ -929,6 +932,7 @@ function TaskCard({
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             <span
+              data-tour="ws-task-status"
               className={cn(
                 'inline-flex h-[18px] items-center rounded-full px-1.5 text-[10px] font-semibold tracking-[0.02em]',
                 meta.pill,
@@ -988,6 +992,7 @@ function GhostCard({
     <button
       type="button"
       onClick={onOpen}
+      data-tour="ws-task-ghost"
       className="relative w-full shrink-0 overflow-visible rounded-[10px] border border-dashed border-[var(--stroke-soft-200)] bg-[var(--bg-surface)] py-2 pl-3 pr-2.5 text-left opacity-55 hover:opacity-90"
     >
       <span

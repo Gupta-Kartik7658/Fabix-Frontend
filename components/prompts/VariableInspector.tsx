@@ -20,6 +20,7 @@ export function VariableInspector({
   return (
     <aside
       aria-label="Variable inspector"
+      data-tour="prompt-variables"
       className={cn(
         'flex min-h-0 flex-col overflow-hidden rounded-[10px] border border-[var(--ps-border)] bg-[var(--ps-sidebar)]',
         className,

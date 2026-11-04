@@ -372,6 +372,7 @@ export function Composer({
           <button
             type="button"
             onClick={insertMentionTrigger}
+            data-tour="ws-composer-mention"
             aria-label="Mention a person or agent"
             title="Mention a person or agent"
             className="flex size-8 items-center justify-center rounded-[7px] text-[var(--neutral-sub-600)] transition-colors hover:bg-[var(--neutral-weak-50)] hover:text-[var(--neutral-strong-950)] focus-visible:shadow-none"

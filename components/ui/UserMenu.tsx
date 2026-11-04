@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/Badge';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 import {useRouter} from "next/navigation";
 import { api } from "@/lib/api";
+import { requestGuidedTour } from '@/lib/guided-tour';
 
 // Emphasized-decel easing — matches DateRangePicker / homepage rhythm.
 const EASE_EMPH: [number, number, number, number] = [0.2, 0.8, 0.2, 1];
@@ -215,6 +216,18 @@ export function UserMenu({ pendingApprovals = 0, className }: UserMenuProps) {
 
             {/* Menu group 2 — external help */}
             <div className="p-1">
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  requestGuidedTour();
+                }}
+                className="flex h-8 w-full items-center gap-2.5 rounded-[7px] px-2 text-[13px] font-medium tracking-[-0.01em] text-[var(--neutral-sub-600)] hover:bg-[var(--neutral-weak-50)] hover:text-[var(--neutral-strong-950)]"
+              >
+                <Sparkles className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                Guided tour
+              </button>
               <Item
                 href="https://docs.runaegis.co"
                 external

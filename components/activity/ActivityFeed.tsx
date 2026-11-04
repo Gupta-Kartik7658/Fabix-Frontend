@@ -101,6 +101,7 @@ export function ActivityFeed({
 
   const newItems = visible.filter((item) => item.isNew);
   const earlierItems = visible.filter((item) => !item.isNew);
+  const anchorKey = newItems[0]?.key ?? earlierItems[0]?.key ?? null;
   const filtersActive =
     filter !== 'all' || readState !== 'all' || activeWorkspace !== 'all' || query.trim() !== '';
 
@@ -126,7 +127,7 @@ export function ActivityFeed({
   };
 
   return (
-    <section aria-labelledby="activity-feed-heading">
+    <section aria-labelledby="activity-feed-heading" data-tour="activity-feed">
       <div className="flex items-baseline gap-2.5">
         <h2
           id="activity-feed-heading"
@@ -145,6 +146,7 @@ export function ActivityFeed({
         <div
           role="tablist"
           aria-label="Activity type"
+          data-tour="activity-tabs"
           className="-mx-1 flex min-w-0 gap-0.5 overflow-x-auto px-1"
         >
           {ACTIVITY_FILTERS.map((option) => {
@@ -156,6 +158,7 @@ export function ActivityFeed({
                 type="button"
                 role="tab"
                 aria-selected={selected}
+                data-tour={`activity-tab-${option.id}`}
                 onClick={() => setFilter(option.id)}
                 className={cn(
                   'flex h-8 shrink-0 items-center gap-1.5 rounded-[8px] px-2.5 text-[13px] font-medium transition-colors duration-150',
@@ -182,10 +185,11 @@ export function ActivityFeed({
           })}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 xl:shrink-0 xl:flex-nowrap">
+        <div data-tour="activity-filters" className="flex flex-wrap items-center gap-2 xl:shrink-0 xl:flex-nowrap">
           <div
             role="radiogroup"
             aria-label="Read state"
+            data-tour="activity-filter-read"
             className="flex h-8 items-center rounded-[8px] bg-[var(--ac-card)] p-0.5 ring-1 ring-inset ring-[var(--ac-border)]"
           >
             {(['all', 'unread'] as const).map((value) => (
@@ -207,7 +211,7 @@ export function ActivityFeed({
             ))}
           </div>
 
-          <div className="relative">
+          <div className="relative" data-tour="activity-filter-workspace">
             <label className="sr-only" htmlFor="activity-workspace">
               Workspace
             </label>
@@ -231,7 +235,7 @@ export function ActivityFeed({
             />
           </div>
 
-          <div data-input-shell className="flex h-8 w-full items-center rounded-[8px] bg-[var(--ac-card)] ring-1 ring-inset ring-[var(--ac-border)] transition-shadow duration-150 focus-within:ring-[rgba(0,184,121,0.5)] sm:w-[200px]">
+          <div data-input-shell data-tour="activity-filter-search" className="flex h-8 w-full items-center rounded-[8px] bg-[var(--ac-card)] ring-1 ring-inset ring-[var(--ac-border)] transition-shadow duration-150 focus-within:ring-[rgba(0,184,121,0.5)] sm:w-[200px]">
             <Search size={14} className="ml-2.5 shrink-0 text-[var(--ac-muted)]" />
             <label htmlFor="activity-search" className="sr-only">
               Search notifications
@@ -315,6 +319,7 @@ export function ActivityFeed({
             <ActivityRow
               key={item.key}
               item={item}
+              anchored={item.key === anchorKey}
               marking={markingId === item.id}
               onMarkRead={onMarkRead}
               onCopied={onCopied}
@@ -329,6 +334,7 @@ export function ActivityFeed({
             <ActivityRow
               key={item.key}
               item={item}
+              anchored={item.key === anchorKey}
               marking={markingId === item.id}
               onMarkRead={onMarkRead}
               onCopied={onCopied}
