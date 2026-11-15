@@ -300,6 +300,25 @@ export type WorkspaceAgentKeyResponse = {
   mcp_config_snippet: WorkspaceMcpConfigSnippet;
 };
 
+export type ScrumTaskQueued = {
+  success: boolean;
+  task_id: string;
+  status: "queued";
+};
+
+export type ScrumTaskRemoved = {
+  success: boolean;
+  task_id: string;
+  status: "removed";
+  task?: unknown;
+};
+
+export type ScrumTasksPurged = {
+  success: boolean;
+  removed_count: number;
+  status: "purged";
+};
+
 export type WorkspaceInviteStatus =
   | "pending"
   | "accepted"
@@ -4124,6 +4143,57 @@ export const api = {
     );
     if (!res.ok) {
       throw new Error(`Failed to revoke agent key: ${await readErrorMessage(res)}`);
+    }
+    return res.json();
+  },
+
+  /**
+   * Queues a Scrum Agent run for the signed-in user. The backend creates the
+   * workspace's `scrum` agent if it is missing. An empty prompt runs it autonomously.
+   */
+  queueScrumTask: async (payload: {
+    workspace_id: string;
+    prompt?: string | null;
+  }): Promise<ScrumTaskQueued> => {
+    const res = await apiFetch(`${API_BASE}/tasks`, {
+      method: "POST",
+      headers: getJsonHeaders(),
+      body: JSON.stringify({
+        workspace_id: payload.workspace_id,
+        prompt: payload.prompt ?? "",
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(
+        res.status === 404
+          ? "You don't have access to this workspace."
+          : `Failed to queue Scrum Agent: ${await readErrorMessage(res)}`,
+      );
+    }
+    return res.json();
+  },
+
+  /** Cancels a ticket this user queued that is still waiting; 404 once a worker picked it up. */
+  cancelScrumTask: async (taskId: string): Promise<ScrumTaskRemoved> => {
+    const res = await apiFetch(`${API_BASE}/tasks/${encodeURIComponent(taskId)}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      throw new ApiError({
+        status: res.status,
+        message:
+          res.status === 404
+            ? "This run already started, or it wasn't queued by you."
+            : `Failed to cancel run: ${await readErrorMessage(res)}`,
+      });
+    }
+    return res.json();
+  },
+
+  purgeScrumTasks: async (): Promise<ScrumTasksPurged> => {
+    const res = await apiFetch(`${API_BASE}/tasks`, { method: "DELETE" });
+    if (!res.ok) {
+      throw new Error(`Failed to clear queue: ${await readErrorMessage(res)}`);
     }
     return res.json();
   },

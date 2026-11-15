@@ -14,17 +14,18 @@ import {
   Paperclip,
   Pencil,
   Settings2,
+  Sparkles,
   UserPlus,
   type LucideIcon,
 } from 'lucide-react';
 import {
   api,
+  getApiErrorMessage,
   getWorkspaceMessageStreamUrl,
   normalizeWorkspaceMessage,
   type WorkspaceAgentKeyResponse,
   type WorkspaceAgentStatus,
   type WorkspaceDetail,
-  type WorkspaceFileRef,
   type WorkspaceMessage,
   type WorkspacePerson,
   type WorkspacePointerStatus,
@@ -34,12 +35,14 @@ import ErrorBanner from '@/components/ui/ErrorBanner';
 import { Button } from '@/components/ui/Button';
 import { useTheme } from '@/components/ui/ThemeToggle';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { useToast } from '@/components/ui/Toast';
 import { useUser } from '@/lib/hooks';
+import { findScrumAgent, runScrumAgent } from '@/lib/scrumAgent';
 import { cn, formatCompactNumber } from '@/lib/utils';
 import { AgentChat } from './AgentChat';
 import { AgentKeyDialog } from './AgentKeyDialog';
 import { AgentRoster } from './AgentRoster';
-import { Composer } from './Composer';
+import { ScrumPromptBox } from './ScrumPromptBox';
 import { AgentGlyph, MentionText, AgentHueProvider } from './agent-visuals';
 import { UserMenu } from '@/components/ui/UserMenu';
 import { EditWorkspaceDialog } from './CreateWorkspaceDialog';
@@ -55,6 +58,7 @@ import { ShortcutsDialog, useWorkspaceShortcuts } from './shortcuts';
 import { WorkspaceAgentsMdDialog } from './WorkspaceAgentsMdDialog';
 import { InviteWorkspaceDialog } from './InviteWorkspaceDialog';
 import { WorkspaceRunsPanel } from './WorkspaceRunsPanel';
+import { ScrumAgentDialog } from './ScrumAgentDialog';
 import { WorkspaceOnboardingProvider } from '@/components/guided-tour/WorkspaceOnboardingProvider';
 import { requestGuidedTour } from '@/lib/guided-tour';
 
@@ -92,6 +96,7 @@ export function WorkspaceRoom({ workspaceId }: { workspaceId: string }) {
   const { theme, setTheme } = useTheme();
   const isDemo = useIsDemo();
   const { user } = useUser();
+  const toast = useToast();
   const [detail, setDetail] = useState<WorkspaceDetail | null>(null);
   const [siblings, setSiblings] = useState<WorkspaceSummary[]>([]);
   const [siblingMeta, setSiblingMeta] = useState<Record<string, SiblingMeta>>({});
@@ -113,6 +118,8 @@ export function WorkspaceRoom({ workspaceId }: { workspaceId: string }) {
   const [people, setPeople] = useState<WorkspacePerson[]>([]);
   const [focusMessageId, setFocusMessageId] = useState<string | null>(null);
   const [recentTick, setRecentTick] = useState(0);
+  const [scrumOpen, setScrumOpen] = useState(false);
+  const [scrumWatchUntil, setScrumWatchUntil] = useState(0);
 
   const load = useCallback(async () => {
     setError(null);
@@ -202,6 +209,26 @@ export function WorkspaceRoom({ workspaceId }: { workspaceId: string }) {
     };
   }, [isDemo, workspaceId]);
 
+  // The message stream does not carry pointer changes, so poll pointers for a
+  // while after a Scrum Agent run is queued.
+  useEffect(() => {
+    if (!scrumWatchUntil) return;
+    const id = window.setInterval(async () => {
+      if (Date.now() > scrumWatchUntil) {
+        window.clearInterval(id);
+        setScrumWatchUntil(0);
+        return;
+      }
+      try {
+        const next = await api.getWorkspacePointers(workspaceId);
+        setDetail((current) => (current ? { ...current, pointers: next } : current));
+      } catch {
+        // Transient failures are fine; the next tick retries.
+      }
+    }, 10_000);
+    return () => window.clearInterval(id);
+  }, [scrumWatchUntil, workspaceId]);
+
   const agents = useMemo(() => detail?.agents ?? [], [detail?.agents]);
   const pointers = useMemo(
     () => (detail?.pointers ?? []).slice().sort((a, b) => a.sort_order - b.sort_order),
@@ -223,44 +250,20 @@ export function WorkspaceRoom({ workspaceId }: { workspaceId: string }) {
     [siblings, recentTick],
   );
 
-  const sendMessage = async (
-    text: string,
-    files: WorkspaceFileRef[],
-    pingUserIds: string[] = [],
-  ) => {
-    if (!senderId) return;
-    const sender = agents.find((a) => a.id === senderId);
-    const ids = new Set(pingUserIds);
-    const tokens = Array.from((text || '').matchAll(/@([a-z0-9_-]+)/gi)).map((m) =>
-      m[1].toLowerCase(),
-    );
-    for (const person of people) {
-      const handle = person.ping_handle?.trim().toLowerCase();
-      if (handle && tokens.includes(handle)) ids.add(person.user_id);
-    }
-    if (tokens.includes('owner')) {
-      const owner = people.find((person) => person.is_owner);
-      if (owner) ids.add(owner.user_id);
-    }
-    if (tokens.includes('user') && sender?.user_id) ids.add(sender.user_id);
+  const sendScrumPrompt = async (prompt: string) => {
     try {
-      const resolved = await api.resolveWorkspaceMentions(workspaceId, {
-        message_text: text,
-        sender_member_id: senderId,
+      await runScrumAgent(workspaceId, prompt);
+      toast.success('Sent to @scrum', {
+        description: 'Its reply and task changes will show up here.',
       });
-      for (const ping of resolved.pinged_users ?? []) {
-        if (ping.user_id) ids.add(ping.user_id);
-      }
-    } catch {
-      // Older APIs still accept ping_user_ids computed locally.
+      setScrumWatchUntil(Date.now() + 5 * 60_000);
+      if (!findScrumAgent(agents)) void load();
+    } catch (err) {
+      toast.error('Scrum Agent did not receive this prompt', {
+        description: getApiErrorMessage(err),
+      });
+      throw err;
     }
-    await api.createWorkspaceMessage(workspaceId, {
-      sender_member_id: senderId,
-      message_text: text || null,
-      file_refs: files,
-      ping_user_ids: ids.size ? [...ids] : undefined,
-    });
-    await load();
   };
 
   const createPointer = async (title: string, assigneeMemberId?: string | null) => {
@@ -338,7 +341,7 @@ export function WorkspaceRoom({ workspaceId }: { workspaceId: string }) {
         setInviteLinkOpen(false);
       },
     },
-    !issued && !agentsMdOpen,
+    !issued && !agentsMdOpen && !scrumOpen,
   );
 
   const shellHeight = 'h-[calc(100dvh-48px)] lg:h-dvh';
@@ -491,6 +494,16 @@ export function WorkspaceRoom({ workspaceId }: { workspaceId: string }) {
               >
                 Invite
               </Button>
+              {!isDemo && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  leadingIcon={<Sparkles size={13} />}
+                  onClick={() => setScrumOpen(true)}
+                >
+                  Run Scrum Agent
+                </Button>
+              )}
               <Button variant="primary" size="sm" leadingIcon={<UserPlus size={13} />} onClick={openAddAgent}>
                 Add agent
               </Button>
@@ -607,11 +620,9 @@ export function WorkspaceRoom({ workspaceId }: { workspaceId: string }) {
                 }}
               />
               <div data-tour="ws-composer" className="shrink-0 border-t border-[var(--stroke-soft-200)] bg-[var(--bg-app)]">
-                <Composer
-                  agents={agents}
-                  people={people}
-                  senderId={senderId}
-                  onSend={sendMessage}
+                <ScrumPromptBox
+                  onSend={sendScrumPrompt}
+                  disabled={isDemo}
                   focusSignal={composerFocus}
                 />
               </div>
@@ -677,6 +688,12 @@ export function WorkspaceRoom({ workspaceId }: { workspaceId: string }) {
 
         <WorkspaceOnboardingProvider workspaceId={workspaceId} section={tab} ready={Boolean(detail)} />
         <AgentKeyDialog open={!!issued} onOpenChange={(open) => !open && setIssued(null)} issued={issued} />
+        <ScrumAgentDialog
+          workspaceId={workspaceId}
+          open={scrumOpen}
+          onOpenChange={setScrumOpen}
+          onQueued={() => setScrumWatchUntil(Date.now() + 5 * 60_000)}
+        />
         <WorkspaceAgentsMdDialog open={agentsMdOpen} onOpenChange={setAgentsMdOpen} />
         <ShortcutsDialog open={helpOpen} onOpenChange={setHelpOpen} />
         <InviteWorkspaceDialog

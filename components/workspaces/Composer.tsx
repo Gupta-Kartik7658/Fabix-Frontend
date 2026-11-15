@@ -262,7 +262,7 @@ export function Composer({
   const agentMatches = matches.filter((item) => item.kind === 'agent');
 
   return (
-    <div className="relative w-full max-w-[960px] px-4 pb-3 pt-2 sm:px-6">
+    <div className="relative w-full px-4 pb-3 pt-2 sm:px-6">
       {mention && matches.length > 0 && (
         <div
           role="listbox"

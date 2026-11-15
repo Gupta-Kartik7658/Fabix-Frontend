@@ -121,7 +121,7 @@ export function AgentChat({
 
   return (
     <div data-tour="ws-conversation-feed" className="flex-1 overflow-y-auto">
-      <div className="w-full max-w-[960px] px-1 py-3 sm:px-3">
+      <div className="w-full px-1 py-3 sm:px-3">
         {messages.map((message, index) => {
           const previous = index > 0 ? messages[index - 1] : null;
           const day = dayLabel(message.created_at);
@@ -279,7 +279,7 @@ function MessageRow({
         )}
 
         {message.message_text && (
-          <p className="mt-0.5 max-w-[76ch] whitespace-pre-wrap break-words text-[13.5px] leading-[1.65] text-[var(--neutral-strong-950)]">
+          <p className="mt-0.5 whitespace-pre-wrap break-words text-[13.5px] leading-[1.65] text-[var(--neutral-strong-950)]">
             <MentionText
               text={message.message_text}
               knownHandles={handles}

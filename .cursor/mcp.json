@@ -3,7 +3,7 @@
 
       "aegis_local_frontend": {
         "transport": "http",
-          "url": "https://mcp.runaegis.co/mcp?api_key=yoBFMElHxRegvzaDVzQso2RXO7WOwA2zGAXdJD2G_stJou2Yel4iZV5iGSGSyPot"
-        },
+          "url": "http://localhost:8082/mcp?api_key=S4AfNiwM2I4j_4oLj40p_bVNFBni6d-lMXYuIKJpDEBJDWlB_hVQplqKpLidBLM9"
+        }
     }
 }
